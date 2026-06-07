@@ -10,6 +10,8 @@ from pathlib import Path
 
 ALLOWED_STATUS = {"pending", "partial", "complete", "failed"}
 ALLOWED_CONFIDENCE = {"low", "medium", "high"}
+ALLOWED_DATA_QUALITY = {"low", "medium", "high"}
+ALLOWED_EVIDENCE_STRENGTH = {"weak", "medium", "strong"}
 ALLOWED_ACTION = {
     "unknown",
     "submit",
@@ -46,6 +48,16 @@ def main() -> int:
 
     metrics = data.get("metrics", {})
     check(metrics.get("confidence") in ALLOWED_CONFIDENCE, "invalid metrics.confidence", problems)
+    if "data_quality_grade" in metrics:
+        check(metrics.get("data_quality_grade") in ALLOWED_DATA_QUALITY, "invalid metrics.data_quality_grade", problems)
+    if "evidence_strength" in metrics:
+        check(metrics.get("evidence_strength") in ALLOWED_EVIDENCE_STRENGTH, "invalid metrics.evidence_strength", problems)
+    if "sample_coverage_rate" in metrics:
+        try:
+            sample_coverage_rate = float(metrics.get("sample_coverage_rate"))
+            check(0.0 <= sample_coverage_rate <= 1.0, "metrics.sample_coverage_rate out of range", problems)
+        except Exception:
+            check(False, "invalid metrics.sample_coverage_rate", problems)
 
     decision = data.get("decision", {})
     check(decision.get("recommended_action") in ALLOWED_ACTION, "invalid decision.recommended_action", problems)
@@ -61,4 +73,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

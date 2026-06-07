@@ -7,7 +7,7 @@ import argparse
 import csv
 import json
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +15,11 @@ TITLE_SUFFIXES = [
     "研究", "探析", "探讨", "考论", "考察", "阐释", "辨析", "述评", "刍议",
     "论", "重审", "生成", "传播", "接受", "路径", "机制", "视域", "回顾",
 ]
+
+MATERIAL_WORDS = ["档案", "文献", "碑帖", "题跋", "图像", "地方志", "手稿", "日记", "书信", "拓本", "印谱", "个案", "材料"]
+ACTION_WORDS = ["考论", "考察", "辨析", "阐释", "重审", "探析", "探讨", "研究", "接受", "传播", "生成", "流变", "转化"]
+TIME_WORDS = ["先秦", "汉代", "唐代", "宋代", "元代", "明代", "清代", "晚清", "民国", "近代", "现代", "当代"]
+REGION_WORDS = ["中国", "岭南", "江南", "山东", "北京", "上海", "广东", "港澳", "东亚", "日本", "地方", "区域"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +63,26 @@ def pick(row: dict, *keys: str) -> str:
     return ""
 
 
+def classify_title_pattern(title: str) -> str:
+    clean = re.sub(r"\s+", "", title)
+    has_material = any(word in clean for word in MATERIAL_WORDS)
+    has_action = any(word in clean for word in ACTION_WORDS)
+    has_time = any(word in clean for word in TIME_WORDS)
+    has_region = any(word in clean for word in REGION_WORDS)
+    has_concept = bool(re.search(r"[“\"《][^”\"》]+[”\"》]", clean)) or any(word in clean for word in ["概念", "范畴", "观念", "理论", "话语"])
+    if has_material and has_action:
+        return "对象+问题动作+材料"
+    if has_concept and (has_time or has_region):
+        return "概念+时代/地区+方法"
+    if has_time and has_region:
+        return "时代+地区+对象"
+    if "以" in clean and any(mark in clean for mark in ["为例", "为中心", "为对象"]):
+        return "以...为例/中心/对象"
+    if any(mark in clean for mark in ["：", ":"]):
+        return "主副标题"
+    return "其他"
+
+
 def main() -> int:
     args = parse_args()
     path = Path(args.input)
@@ -73,8 +98,15 @@ def main() -> int:
 
     suffix_counter = Counter()
     verb_counter = Counter()
+    pattern_counter = Counter()
+    punctuation_counter = Counter()
     for title in titles:
         clean = re.sub(r"\s+", "", title)
+        pattern_counter[classify_title_pattern(clean)] += 1
+        if "：" in title or ":" in title:
+            punctuation_counter["冒号"] += 1
+        if "—" in title or "-" in title:
+            punctuation_counter["破折号"] += 1
         for suffix in TITLE_SUFFIXES:
             if clean.endswith(suffix) or suffix in clean:
                 suffix_counter[suffix] += 1
@@ -98,6 +130,8 @@ def main() -> int:
         "subtitle_ratio": round(subtitle_count / len(titles), 4) if titles else 0,
         "top_suffixes": suffix_counter.most_common(15),
         "top_verbs": verb_counter.most_common(15),
+        "title_structure_patterns": pattern_counter.most_common(),
+        "punctuation_patterns": punctuation_counter.most_common(),
         "year_counts": dict(year_counter.most_common()),
         "column_counts": dict(column_counter.most_common()),
         "keyword_counts": keyword_counter.most_common(30),
@@ -116,6 +150,12 @@ def main() -> int:
     report_lines.append("")
     report_lines.append("## 高频后缀 / 结构")
     report_lines.extend([f"- {k}：{v}" for k, v in stats["top_suffixes"][:10]])
+    report_lines.append("")
+    report_lines.append("## 题名结构模式")
+    report_lines.extend([f"- {k}：{v}" for k, v in stats["title_structure_patterns"]])
+    report_lines.append("")
+    report_lines.append("## 标点结构")
+    report_lines.extend([f"- {k}：{v}" for k, v in stats["punctuation_patterns"]] or ["- 暂无明显冒号或破折号结构。"])
     report_lines.append("")
     report_lines.append("## 年度分布")
     report_lines.extend([f"- {k}：{v}" for k, v in stats["year_counts"].items()])

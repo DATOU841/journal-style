@@ -79,6 +79,9 @@ journal-style-task/
     "pdf_count": 0,
     "rag_doc_count": 0,
     "fit_score": null,
+    "sample_coverage_rate": 0.0,
+    "data_quality_grade": "low",
+    "evidence_strength": "weak",
     "confidence": "low"
   },
   "decision": {
@@ -97,3 +100,37 @@ journal-style-task/
 }
 ```
 
+## 4. 必需产物清单
+
+- `00-official/journal-identity-confirmation.md`
+- `00-official/journal-official-and-web-evidence.md`
+- `01-title-intake/journal-full-title-list.xlsx`
+- `01-title-intake/journal-title-ingestion-log.md`
+- `02-topic-library/topic-special-library-plan.md`
+- `02-topic-library/topic-related-title-list.xlsx`
+- `02-topic-library/zotero-and-pdf-check-report.md`
+- `025-rag-import/rag-import-handoff.md`
+- `03-analysis/journal-quantitative-analysis-report.md`
+- `03-analysis/journal-title-style-report.md`
+- `03-analysis/journal-topic-trend-report.md`
+- `03-analysis/journal-method-material-report.md`
+- `03-analysis/journal-argument-style-report.md`
+- `03-analysis/journal-reference-ecology-report.md`
+- `04-fit-evaluation/submission-fit-score.md`
+- `04-fit-evaluation/topic-suggestion-report.md`
+- `04-fit-evaluation/target-journal-decision.md`
+- `05-handoff/handoff-to-downstream-skills.md`
+- `05-handoff/wenheng-center-status.json`
+
+## 5. 量化分析报告字段
+
+`03-analysis/journal-quantitative-analysis-report.md` 必须包含：
+
+- 题录覆盖率
+- 年度覆盖率
+- PDF 覆盖率
+- RAG 可用率
+- 综合样本覆盖率
+- 数据质量等级
+- 证据强度
+- 低置信警告

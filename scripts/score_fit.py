@@ -24,6 +24,7 @@ WEIGHTS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score journal submission fit.")
     parser.add_argument("--input", help="JSON file with section scores.")
+    parser.add_argument("--evidence", help="Optional JSON file with evidence index.")
     parser.add_argument("--output", help="Optional output JSON path.")
     return parser.parse_args()
 
@@ -41,6 +42,10 @@ def main() -> int:
     else:
         data = json.load(sys.stdin)
 
+    evidence = data.get("evidence", {})
+    if args.evidence:
+        evidence = json.loads(Path(args.evidence).read_text(encoding="utf-8"))
+
     scores = {}
     total = 0.0
     risk_deduction = 0.0
@@ -57,7 +62,7 @@ def main() -> int:
 
     total += 5.0 - risk_deduction
     total = max(0.0, min(100.0, total))
-    result = {"total": round(total, 1), "scores": scores, "weights": WEIGHTS}
+    result = {"total": round(total, 1), "scores": scores, "weights": WEIGHTS, "evidence": evidence}
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(text + "\n", encoding="utf-8")

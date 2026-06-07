@@ -113,6 +113,9 @@ def main() -> int:
                 "pdf_count": 0,
                 "rag_doc_count": 0,
                 "fit_score": None,
+                "sample_coverage_rate": 0.0,
+                "data_quality_grade": "low",
+                "evidence_strength": "weak",
                 "confidence": "low",
             },
             "decision": {
