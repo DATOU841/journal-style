@@ -1,0 +1,4 @@
+interface:
+  display_name: "journal-style"
+  short_description: "中文期刊分析、选题判断与投稿匹配"
+  default_prompt: "Use $journal-style to analyze a target journal's identity, title corpus, topic trends, material and argument style, reference ecology, fit score, Wenheng status, and downstream handoff while staying out of manuscript正文 writing."
