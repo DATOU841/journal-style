@@ -1,4 +1,4 @@
 interface:
   display_name: "journal-style"
-  short_description: "中文期刊分析、作者画像、网络画像与投稿匹配"
-  default_prompt: "Use $journal-style to analyze a target journal's identity, title corpus, topic trends, material and argument style, author/institution networks, public author profile and byline/funding patterns, reference ecology and reference networks, fit score, Wenheng status, and downstream handoff while staying out of manuscript正文 writing."
+  short_description: "中文期刊分析、作者画像、运营证据与投稿匹配"
+  default_prompt: "Use $journal-style to analyze a target journal's identity, title corpus, topic trends, submission operations and public reputation evidence, post-RAG/full-text patterns, material and argument style, author/institution networks, public author profile and byline/funding patterns, reference ecology and reference networks, fit score, Wenheng status, and downstream handoff while staying out of manuscript正文 writing."

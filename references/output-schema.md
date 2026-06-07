@@ -110,6 +110,8 @@ journal-style-task/
 - `02-topic-library/topic-related-title-list.xlsx`
 - `02-topic-library/zotero-and-pdf-check-report.md`
 - `025-rag-import/rag-import-handoff.md`
+- `03-analysis/journal-rag-fulltext-pattern-report.md`
+- `03-analysis/journal-rag-fulltext-pattern-statistics.json`
 - `03-analysis/journal-quantitative-analysis-report.md`
 - `03-analysis/journal-title-style-report.md`
 - `03-analysis/journal-topic-trend-report.md`
@@ -123,6 +125,8 @@ journal-style-task/
 - `03-analysis/journal-reference-network-report.md`
 - `03-analysis/journal-reference-network-statistics.json`
 - `04-fit-evaluation/submission-fit-score.md`
+- `04-fit-evaluation/journal-submission-operations-report.md`
+- `04-fit-evaluation/journal-submission-operations-statistics.json`
 - `04-fit-evaluation/topic-suggestion-report.md`
 - `04-fit-evaluation/target-journal-decision.md`
 - `05-handoff/handoff-to-downstream-skills.md`
@@ -183,3 +187,33 @@ journal-style-task/
 - 证据强度、降级提示和不得推断项
 
 `03-analysis/journal-author-profile-and-byline-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
+
+## 8. v0.1.3 投稿运营与公开声誉证据字段
+
+`04-fit-evaluation/journal-submission-operations-report.md` 必须包含：
+
+- 来源构成和证据强度
+- 官方投稿入口和投稿系统状态
+- 官方审稿周期与第三方审稿周期线索分列
+- 录用周期和见刊周期线索
+- 费用政策和收费风险
+- 公开声誉线索，按来源层级和正负面分类
+- 可信性风险、同名刊/假官网/投稿中介风险和待核验项
+- 对投稿决策的影响建议，但不得替代学术适配评分
+
+`04-fit-evaluation/journal-submission-operations-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
+
+## 9. v0.1.3 RAG/全文样本模式挖掘字段
+
+`03-analysis/journal-rag-fulltext-pattern-report.md` 必须包含：
+
+- 样本范围、年份覆盖、栏目覆盖和证据强度
+- 摘要长度、关键词数量和关键词复用线索
+- 章节结构和标题层级统计
+- 材料标记和方法标记分布
+- 图表、图片、注释、参考文献线索
+- 收稿、修回、录用、刊发日期线索
+- 可计算周期和不可计算原因
+- 降级提示和人工复核建议
+
+`03-analysis/journal-rag-fulltext-pattern-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。

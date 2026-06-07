@@ -78,18 +78,84 @@ def build_reference_rows() -> list[dict]:
     return rows
 
 
+def build_operations_rows() -> list[dict]:
+    return [
+        {
+            "source_type": "official",
+            "source_title": "投稿须知",
+            "source_url": "https://example.org/journal/submit",
+            "review_cycle_days": "60",
+            "fee_policy": "不收审稿费，录用后按页收取版面费",
+            "page_charge": "按页",
+            "submission_system": "官方投稿系统",
+            "reputation_polarity": "neutral",
+            "reputation_note": "官网说明审稿周期约两个月。",
+        },
+        {
+            "source_type": "third_party",
+            "source_title": "作者经验统计",
+            "source_url": "https://example.org/third-party",
+            "first_decision_days": "75",
+            "acceptance_days": "180",
+            "publication_lag_days": "120",
+            "reputation_polarity": "mixed",
+            "reputation_note": "第三方经验样本显示等待时间差异较大。",
+        },
+        {
+            "source_type": "forum",
+            "source_title": "投稿经验帖",
+            "source_url": "https://example.org/forum",
+            "review_cycle_days": "150",
+            "reputation_polarity": "negative",
+            "reputation_note": "个别作者反馈等待较长，需核验。",
+            "warning_flag": "是",
+        },
+    ]
+
+
+def build_fulltext_rows() -> list[dict]:
+    rows = []
+    for index in range(1, 9):
+        rows.append({
+            "article_id": f"FT{index}",
+            "title": f"碑帖材料与书学传播研究{index}",
+            "year": 2021 + (index % 4),
+            "column": "专题研究" if index % 2 else "书学史",
+            "abstract": "本文围绕碑帖材料、传播路径与书学接受展开讨论。",
+            "keywords": "碑帖；传播；书学史；材料",
+            "fulltext": (
+                f"摘要：本文围绕碑帖材料、传播路径与书学接受展开讨论。关键词：碑帖；传播；书学史\n"
+                "一、问题的提出\n"
+                "本文使用档案、碑帖、图像材料，结合比较和考辨方法展开分析。\n"
+                "二、材料与方法\n"
+                "材料包括馆藏档案、拓本和图版。方法包括个案研究、图像分析和文本分析。\n"
+                "三、结论\n"
+                "表1 材料来源统计。图1 传播路径图。注：样本为示例。\n"
+                "[1] 示例参考文献。\n"
+                f"收稿日期：2024-01-{index + 10:02d} 录用日期：2024-03-{index + 10:02d} 刊发日期：2024-06-{index + 10:02d}\n"
+            ),
+        })
+    return rows
+
+
 def main() -> int:
     args = parse_args()
     work_dir = Path(tempfile.mkdtemp(prefix="journal-style-smoke-"))
     try:
         title_csv = work_dir / "titles.csv"
         refs_csv = work_dir / "references.csv"
+        operations_csv = work_dir / "operations.csv"
+        fulltext_csv = work_dir / "fulltext.csv"
         write_csv(title_csv, build_title_rows())
         write_csv(refs_csv, build_reference_rows())
+        write_csv(operations_csv, build_operations_rows())
+        write_csv(fulltext_csv, build_fulltext_rows())
 
         commands = [
             [sys.executable, str(SCRIPTS / "analyze_title_corpus.py"), "--input", str(title_csv), "--output-json", "title.json", "--output-md", "title.md"],
             [sys.executable, str(SCRIPTS / "analyze_column_structure.py"), "--title-list", str(title_csv), "--output-json", "column.json", "--output-md", "column.md"],
+            [sys.executable, str(SCRIPTS / "analyze_journal_submission_operations.py"), "--input", str(operations_csv), "--output-json", "operations.json", "--output-md", "operations.md"],
+            [sys.executable, str(SCRIPTS / "analyze_fulltext_article_patterns.py"), "--input", str(fulltext_csv), "--output-json", "fulltext-pattern.json", "--output-md", "fulltext-pattern.md"],
             [sys.executable, str(SCRIPTS / "analyze_author_institution_network.py"), "--input", str(title_csv), "--output-json", "author-network.json", "--output-md", "author-network.md"],
             [sys.executable, str(SCRIPTS / "analyze_author_profile_and_byline.py"), "--input", str(title_csv), "--output-json", "author-profile.json", "--output-md", "author-profile.md"],
             [sys.executable, str(SCRIPTS / "analyze_reference_ecology.py"), "--input", str(refs_csv), "--output-json", "ref-ecology.json", "--output-md", "ref-ecology.md"],
