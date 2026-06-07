@@ -118,6 +118,8 @@ journal-style-task/
 - `03-analysis/journal-reference-ecology-report.md`
 - `03-analysis/journal-author-institution-network-report.md`
 - `03-analysis/journal-author-institution-network-statistics.json`
+- `03-analysis/journal-author-profile-and-byline-report.md`
+- `03-analysis/journal-author-profile-and-byline-statistics.json`
 - `03-analysis/journal-reference-network-report.md`
 - `03-analysis/journal-reference-network-statistics.json`
 - `04-fit-evaluation/submission-fit-score.md`
@@ -164,3 +166,20 @@ journal-style-task/
 - 证据强度和降级提示
 
 `03-analysis/journal-reference-network-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
+
+## 7. v0.1.2 作者公共身份与署名基金结构字段
+
+`03-analysis/journal-author-profile-and-byline-report.md` 必须包含：
+
+- 作者字段、职称字段、学位/身份字段、基金字段覆盖率
+- 单作者、双作者、三人及以上署名结构
+- 第一作者职称分布
+- 第二作者身份分布
+- 学生作者参与比例
+- 高年资一作 + 学生二作线索
+- 明确师生关系说明比例
+- 通讯作者标注比例和位置分布
+- 基金论文比例和基金层级分布
+- 证据强度、降级提示和不得推断项
+
+`03-analysis/journal-author-profile-and-byline-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
