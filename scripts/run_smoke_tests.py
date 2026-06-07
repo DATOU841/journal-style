@@ -53,9 +53,35 @@ def build_title_rows() -> list[dict]:
             "institution": f"机构{index % 4}；合作机构{index % 2}",
             "corresponding_author": f"作者{index % 5}" if index % 4 == 0 else "",
             "fund": "国家社科基金项目" if index % 3 == 0 else "省社科项目" if index % 3 == 1 else "",
+            "material_type": "碑帖；档案" if index % 2 else "图像；文献汇编",
+            "method_type": "考辨；比较" if index % 2 else "个案；图像分析",
             "advisor_student_relation": "公开作者简介标注导师指导关系" if index == 1 else "",
             "abstract": "围绕碑帖材料、传播路径与书学接受展开分析。",
             "keywords": "碑帖；传播；书学史",
+            "pdf_status": "有" if index % 2 else "无",
+        })
+    return rows
+
+
+def build_peer_title_rows() -> list[dict]:
+    rows = []
+    for index in range(1, 13):
+        rows.append({
+            "title": f"近现代书法教育专题研究{index}",
+            "year": 2021 + (index % 4),
+            "column": "教育研究" if index % 2 else "理论研究",
+            "author": f"邻刊作者{index % 6}；邻刊合作者{index % 4}",
+            "author_titles": "讲师；博士研究生" if index % 2 else "教授；硕士研究生",
+            "author_stages": "教师；博士生" if index % 2 else "导师；硕士生",
+            "author_degrees": "博士；博士" if index % 2 else "博士；硕士",
+            "institution": f"邻刊机构{index % 5}；邻刊合作机构{index % 3}",
+            "corresponding_author": f"邻刊作者{index % 6}" if index % 5 == 0 else "",
+            "fund": "校级项目" if index % 4 == 0 else "省社科项目" if index % 4 == 1 else "",
+            "material_type": "教育案例；访谈" if index % 2 else "文献汇编；统计",
+            "method_type": "田野；文本分析" if index % 2 else "计量；比较",
+            "advisor_student_relation": "",
+            "abstract": "围绕书法教育、课程建设与传播路径展开分析。",
+            "keywords": "书法教育；课程；传播",
             "pdf_status": "有" if index % 2 else "无",
         })
     return rows
@@ -143,10 +169,12 @@ def main() -> int:
     work_dir = Path(tempfile.mkdtemp(prefix="journal-style-smoke-"))
     try:
         title_csv = work_dir / "titles.csv"
+        peer_title_csv = work_dir / "peer-titles.csv"
         refs_csv = work_dir / "references.csv"
         operations_csv = work_dir / "operations.csv"
         fulltext_csv = work_dir / "fulltext.csv"
         write_csv(title_csv, build_title_rows())
+        write_csv(peer_title_csv, build_peer_title_rows())
         write_csv(refs_csv, build_reference_rows())
         write_csv(operations_csv, build_operations_rows())
         write_csv(fulltext_csv, build_fulltext_rows())
@@ -156,8 +184,11 @@ def main() -> int:
             [sys.executable, str(SCRIPTS / "analyze_column_structure.py"), "--title-list", str(title_csv), "--output-json", "column.json", "--output-md", "column.md"],
             [sys.executable, str(SCRIPTS / "analyze_journal_submission_operations.py"), "--input", str(operations_csv), "--output-json", "operations.json", "--output-md", "operations.md"],
             [sys.executable, str(SCRIPTS / "analyze_fulltext_article_patterns.py"), "--input", str(fulltext_csv), "--output-json", "fulltext-pattern.json", "--output-md", "fulltext-pattern.md"],
+            [sys.executable, str(SCRIPTS / "analyze_funding_topic_association.py"), "--input", str(title_csv), "--user-keywords", "碑帖,传播", "--output-json", "funding-topic.json", "--output-md", "funding-topic.md"],
             [sys.executable, str(SCRIPTS / "analyze_author_institution_network.py"), "--input", str(title_csv), "--output-json", "author-network.json", "--output-md", "author-network.md"],
             [sys.executable, str(SCRIPTS / "analyze_author_profile_and_byline.py"), "--input", str(title_csv), "--output-json", "author-profile.json", "--output-md", "author-profile.md"],
+            [sys.executable, str(SCRIPTS / "analyze_author_profile_and_byline.py"), "--input", str(peer_title_csv), "--output-json", "peer-author-profile.json", "--output-md", "peer-author-profile.md"],
+            [sys.executable, str(SCRIPTS / "compare_multi_journal_author_profiles.py"), "--inputs", "目标刊=author-profile.json", "邻近刊=peer-author-profile.json", "--output-json", "multi-author-profile.json", "--output-md", "multi-author-profile.md"],
             [sys.executable, str(SCRIPTS / "analyze_reference_ecology.py"), "--input", str(refs_csv), "--output-json", "ref-ecology.json", "--output-md", "ref-ecology.md"],
             [sys.executable, str(SCRIPTS / "analyze_reference_network.py"), "--input", str(refs_csv), "--output-json", "ref-network.json", "--output-md", "ref-network.md"],
             [

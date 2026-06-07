@@ -113,6 +113,8 @@ journal-style-task/
 - `03-analysis/journal-rag-fulltext-pattern-report.md`
 - `03-analysis/journal-rag-fulltext-pattern-statistics.json`
 - `03-analysis/journal-quantitative-analysis-report.md`
+- `03-analysis/journal-funding-topic-association-report.md`
+- `03-analysis/journal-funding-topic-association-statistics.json`
 - `03-analysis/journal-title-style-report.md`
 - `03-analysis/journal-topic-trend-report.md`
 - `03-analysis/journal-method-material-report.md`
@@ -129,6 +131,8 @@ journal-style-task/
 - `04-fit-evaluation/journal-submission-operations-statistics.json`
 - `04-fit-evaluation/topic-suggestion-report.md`
 - `04-fit-evaluation/target-journal-decision.md`
+- `04-fit-evaluation/multi-journal-author-profile-comparison-report.md`
+- `04-fit-evaluation/multi-journal-author-profile-comparison-statistics.json`
 - `05-handoff/handoff-to-downstream-skills.md`
 - `05-handoff/wenheng-center-status.json`
 
@@ -217,3 +221,30 @@ journal-style-task/
 - 降级提示和人工复核建议
 
 `03-analysis/journal-rag-fulltext-pattern-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
+
+## 10. v0.1.4 基金与选题关联字段
+
+`03-analysis/journal-funding-topic-association-report.md` 必须包含：
+
+- 样本范围、基金字段覆盖率和证据强度
+- 基金论文比例和基金层级分布
+- 各基金层级的关键词、栏目、材料、方法交叉统计
+- 基金论文与非基金论文的关键词差异
+- 用户关键词在基金论文中的命中情况
+- 降级提示和不得推断项
+
+`03-analysis/journal-funding-topic-association-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
+
+## 11. v0.1.4 多期刊作者身份对比字段
+
+`04-fit-evaluation/multi-journal-author-profile-comparison-report.md` 必须包含：
+
+- 对比期刊清单、样本数和字段覆盖率
+- 第一作者职称结构对比
+- 第二作者身份结构对比
+- 学生作者参与比例对比
+- 高年资一作 + 硕士/博士二作线索对比
+- 基金论文比例和基金层级分布对比
+- 改投判断提示、降级提示和不得推断项
+
+`04-fit-evaluation/multi-journal-author-profile-comparison-statistics.json` 必须保留同源统计字段，供后续评分、复核或文衡状态摘要引用。
