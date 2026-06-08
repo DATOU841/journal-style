@@ -17,6 +17,8 @@ WENHENG_MARKERS = (
     "content_source: wenheng_claude",
     "生成来源：文衡 Claude",
     "生成来源: 文衡 Claude",
+    "<!-- content_source: wenheng_claude -->",
+    "<!-- 生成来源：文衡 Claude -->",
 )
 
 REQUIRED_SECTIONS = (

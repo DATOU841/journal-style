@@ -16,18 +16,16 @@ WENHENG_MARKERS = (
     "content_source: wenheng_claude",
     "生成来源：文衡 Claude",
     "生成来源: 文衡 Claude",
+    "<!-- content_source: wenheng_claude -->",
+    "<!-- 生成来源：文衡 Claude -->",
 )
 
 REQUIRED_SECTIONS = (
-    "项目一句话说明",
-    "仓库信息",
     "公开介绍",
     "它解决什么问题",
     "当前能力",
     "边界",
-    "与其他 skill 的协作",
-    "本地校验",
-    "贡献与开发",
+    "开发验证",
     "发布纪律",
 )
 
@@ -66,6 +64,8 @@ def main() -> int:
     text = args.file.read_text(encoding="utf-8")
     if not any(marker in text for marker in WENHENG_MARKERS):
         return fail("README must include a Wenheng Claude source marker")
+    if "<!-- skill_name: journal-style -->" not in text:
+        return fail("README must include skill_name marker")
 
     missing = [section for section in REQUIRED_SECTIONS if section not in text]
     if missing:
@@ -74,6 +74,8 @@ def main() -> int:
     version = VERSION_FILE.read_text(encoding="utf-8").strip()
     if version not in text:
         return fail(f"README must include current VERSION: {version}")
+    if f"<!-- version: {version} -->" not in text:
+        return fail(f"README must include version marker: {version}")
 
     for phrase in FORBIDDEN_PHRASES:
         if phrase in text:
