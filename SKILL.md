@@ -201,6 +201,6 @@ journal-style-task/
 
 ## 公开介绍纪律
 
-- `docs/public-introduction.zh.md` 的正式公开介绍正文必须由文衡 Claude 生成。
+- `README.md` 和 `docs/public-introduction.zh.md` 的正式公开介绍正文必须由文衡 Claude 生成。
 - Codex 只维护公开介绍的结构、生成提示、来源标记和校验脚本，不直接撰写公开介绍正文。
 - 公开介绍不得宣称本 skill 能写正文、润色正文、直接检索 CNKI、直接下载 PDF、直接导入 RAG 或保证录用。

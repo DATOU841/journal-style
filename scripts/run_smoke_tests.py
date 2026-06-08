@@ -181,6 +181,7 @@ def main() -> int:
 
         commands = [
             [sys.executable, str(SCRIPTS / "validate_public_introduction.py")],
+            [sys.executable, str(SCRIPTS / "validate_readme.py")],
             [sys.executable, str(SCRIPTS / "analyze_title_corpus.py"), "--input", str(title_csv), "--output-json", "title.json", "--output-md", "title.md"],
             [sys.executable, str(SCRIPTS / "analyze_column_structure.py"), "--title-list", str(title_csv), "--output-json", "column.json", "--output-md", "column.md"],
             [sys.executable, str(SCRIPTS / "analyze_journal_submission_operations.py"), "--input", str(operations_csv), "--output-json", "operations.json", "--output-md", "operations.md"],

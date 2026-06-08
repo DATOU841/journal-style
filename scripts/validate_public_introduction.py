@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOC = ROOT / "docs" / "public-introduction.zh.md"
+VERSION_FILE = ROOT / "VERSION"
 
 PENDING_MARKER = "content_source: pending_wenheng_claude"
 WENHENG_MARKERS = (
@@ -39,6 +40,8 @@ FORBIDDEN_PHRASES = (
     "直接检索 CNKI",
     "保证录用",
     "确保录用",
+    "录用概率",
+    "发表概率",
 )
 
 
@@ -77,6 +80,9 @@ def validate_final(text: str) -> int:
     missing = [section for section in REQUIRED_SECTIONS if section not in text]
     if missing:
         return fail("final file is missing required sections: " + ", ".join(missing))
+    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    if version not in text:
+        return fail(f"final file must include current VERSION: {version}")
     for phrase in FORBIDDEN_PHRASES:
         if phrase in text:
             return fail(f"forbidden capability claim found: {phrase}")
@@ -101,4 +107,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
