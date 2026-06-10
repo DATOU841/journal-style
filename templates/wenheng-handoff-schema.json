@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wenheng native handoff schema - journal style",
+  "type": "object",
+  "required": [
+    "schema",
+    "created_at",
+    "target_journal",
+    "wenheng_native_binding",
+    "source_skill",
+    "source_fields_policy",
+    "style_memory_not_applicable_reason",
+    "allowed_c03_adjustments",
+    "production_evidence_allowed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "journal_style_c03_handoff_v1" },
+    "created_at": { "type": "string", "minLength": 1 },
+    "target_journal": { "type": "string" },
+    "source_skill": { "const": "journal-style" },
+    "source_fields_policy": { "type": "string", "minLength": 1 },
+    "style_memory_not_applicable_reason": { "type": "string", "minLength": 1 },
+    "allowed_c03_adjustments": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "production_evidence_allowed": { "type": "boolean" },
+    "wenheng_native_binding": {
+      "type": "object",
+      "required": [
+        "binding_status",
+        "native",
+        "skill_id",
+        "task_type",
+        "wenheng_task_id",
+        "f06_channel_decision",
+        "style_memory",
+        "style_memory_not_applicable_reason",
+        "h08",
+        "archive",
+        "learning_event_id",
+        "production_evidence_allowed"
+      ],
+      "properties": {
+        "binding_status": { "const": "validated_by_b02_task_api" },
+        "native": { "const": true },
+        "skill_id": { "const": "journal_style" },
+        "task_type": { "const": "journal_style" },
+        "wenheng_task_id": { "type": "string", "minLength": 1 },
+        "f06_channel_decision": { "type": "object" },
+        "style_memory": {
+          "type": "object",
+          "required": ["source", "rules_applied", "rules_ignored", "conflicts", "not_applicable_reason"],
+          "properties": {
+            "source": { "const": "G07" },
+            "rules_applied": { "type": "array", "items": { "type": "string" } },
+            "rules_ignored": { "type": "array", "items": { "type": "string" } },
+            "conflicts": { "type": "array", "items": { "type": "string" } },
+            "not_applicable_reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        "style_memory_not_applicable_reason": { "type": "string", "minLength": 1 },
+        "h08": {
+          "type": "object",
+          "required": ["evidence_required", "error_review_required_on_failure"],
+          "properties": {
+            "evidence_required": { "const": true },
+            "error_review_required_on_failure": { "const": true }
+          }
+        },
+        "archive": {
+          "type": "object",
+          "required": ["required"],
+          "properties": {
+            "required": { "const": true }
+          }
+        },
+        "learning_event_id": { "type": ["string", "null"] },
+        "production_evidence_allowed": { "const": true }
+      }
+    }
+  }
+}
