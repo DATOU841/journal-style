@@ -7,13 +7,32 @@
   "status": "success",
   "request_type": "journal_corpus",
   "zotero_collection": "",
+  "task_collection_binding": "live",
   "item_count": 0,
   "pdf_count": 0,
   "kb_id": "",
   "rag_doc_count": 0,
+  "item_receipts": [
+    {
+      "item_key": "",
+      "title": "",
+      "in_collection": true,
+      "pdf_ready": false,
+      "rag_indexed": false,
+      "recall_ok": false,
+      "reason": ""
+    }
+  ],
   "failed_items": [],
+  "duplicate_items": [],
+  "no_pdf_items": [],
+  "recall_test": {
+    "sampled": 0,
+    "passed": 0
+  },
   "quality_report": "",
-  "handoff_path": ""
+  "handoff_path": "",
+  "redaction": "no key/token/cookie/fulltext/RAG chunk/Zotero DB"
 }
 ```
 
@@ -30,6 +49,9 @@
 - 若要求 RAG：RAG 导库成功率不低于 80%。
 - 无 PDF 条目、重复条目、失败条目必须列清。
 - 必须有样本召回测试或等价可用性说明。
+- 必须有逐条 item-level receipt；只给总数不得判定 `success`。
+- `task_collection_binding=missing` 直接失败，不允许继续到 RAG/全文分析。
+- runner report 只作诊断，不作正式完成依据。
 
 ## 4. 失败处理
 
@@ -48,4 +70,3 @@
 - 样本召回
 - 数据来源
 - 失败原因
-

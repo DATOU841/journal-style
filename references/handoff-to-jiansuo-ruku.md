@@ -21,6 +21,14 @@
   "exclude_rules": ["会议综述", "书评"],
   "zotero_collection_name": "",
   "kb_name": "",
+  "acceptance": {
+    "min_item_rate": 0.8,
+    "min_pdf_rate": 0.5,
+    "min_rag_success_rate": 0.8,
+    "require_recall_test": true,
+    "require_item_level_receipt": true
+  },
+  "secret_policy": "env_only_no_process_arg_key",
   "notes": ""
 }
 ```
@@ -47,7 +55,15 @@
   "fields": ["title", "author", "institution", "abstract", "keywords", "column", "references"],
   "exclude_rules": ["会议综述", "书评", "征稿启事"],
   "zotero_collection_name": "journal-style-目标期刊-全量题录",
-  "kb_name": "kb-journal-style-目标期刊"
+  "kb_name": "kb-journal-style-目标期刊",
+  "acceptance": {
+    "min_item_rate": 0.8,
+    "min_pdf_rate": 0.5,
+    "min_rag_success_rate": 0.8,
+    "require_recall_test": true,
+    "require_item_level_receipt": true
+  },
+  "secret_policy": "env_only_no_process_arg_key"
 }
 ```
 
@@ -75,4 +91,5 @@
 - 排除规则明确。
 - 目标数量明确。
 - 需要 PDF / RAG 时必须写明验收标准。
-
+- 需要 Zotero/PDF/RAG 时必须要求 item-level receipt；runner report 不得作为正式完成依据。
+- 密钥必须通过环境变量或服务器受控 secret 文件加载，不得通过进程参数传递。

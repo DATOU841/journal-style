@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,14 @@ def run(cmd: list[str], cwd: Path) -> None:
         sys.stderr.write(completed.stdout)
         sys.stderr.write(completed.stderr)
         raise SystemExit(completed.returncode)
+
+
+def run_expect_fail(cmd: list[str], cwd: Path) -> None:
+    completed = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=False)
+    if completed.returncode == 0:
+        sys.stderr.write(completed.stdout)
+        sys.stderr.write(completed.stderr)
+        raise SystemExit("expected command to fail")
 
 
 def build_title_rows() -> list[dict]:
@@ -179,9 +188,152 @@ def main() -> int:
         write_csv(operations_csv, build_operations_rows())
         write_csv(fulltext_csv, build_fulltext_rows())
 
+        status_ok = work_dir / "wenheng-ok.json"
+        status_bad = work_dir / "wenheng-bad.json"
+        status_base = {
+            "schema": "journal_style_wenheng_status_v1",
+            "skill_id": "journal-style",
+            "task_id": "TASK-SMOKE",
+            "task_name": "测试刊",
+            "journal": {"name": "测试刊", "identity_status": "pending"},
+            "input": {},
+            "data_assets": {},
+            "pipeline_status": {
+                "official_check": "pending",
+                "title_intake": "pending",
+                "title_screening": "pending",
+                "topic_library": "pending",
+                "zotero_pdf_rag": "pending",
+                "metadata_analysis": "done",
+                "core_library_selection": "pending",
+                "fulltext_analysis": "blocked",
+                "submission_operations": "pending",
+                "fit_evaluation": "pending",
+                "overall_journal_style": "blocked",
+            },
+            "analysis_layers": {
+                "metadata_layer_status": "done",
+                "fulltext_layer_status": "blocked",
+                "completion_label": "METADATA_ONLY_NOT_FULLTEXT_READY",
+                "fulltext_evidence": {
+                    "core_library_count": 0,
+                    "fulltext_sample_count": 0,
+                    "rag_available_rate": 0.0,
+                    "pdf_coverage_rate": 0.0,
+                },
+            },
+            "metrics": {"confidence": "low", "data_quality_grade": "low", "evidence_strength": "weak", "sample_coverage_rate": 0.0},
+            "decision": {"recommended_action": "unknown"},
+            "handoff": {},
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+        status_ok.write_text(json.dumps(status_base, ensure_ascii=False, indent=2), encoding="utf-8")
+        bad_payload = json.loads(json.dumps(status_base))
+        bad_payload["pipeline_status"]["overall_journal_style"] = "done"
+        status_bad.write_text(json.dumps(bad_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        status_legacy_bad = work_dir / "wenheng-legacy-bad.json"
+        legacy_bad_payload = json.loads(json.dumps(status_base))
+        legacy_bad_payload.pop("analysis_layers")
+        legacy_bad_payload["pipeline_status"] = {
+            "official_check": "done",
+            "title_intake": "done",
+            "topic_library": "done",
+            "pdf_check": "pending",
+            "rag_import": "pending",
+            "analysis": "done",
+            "fit_evaluation": "pending",
+        }
+        status_legacy_bad.write_text(json.dumps(legacy_bad_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        handoff_ok = work_dir / "handoff-ok.json"
+        handoff_bad = work_dir / "handoff-bad.json"
+        receipts = [
+            {"item_key": f"K{i}", "title": f"T{i}", "in_collection": True, "pdf_ready": i <= 6, "rag_indexed": i <= 5, "recall_ok": i <= 3}
+            for i in range(1, 9)
+        ]
+        handoff_ok.write_text(json.dumps({
+            "status": "success",
+            "request_type": "journal_corpus",
+            "task_collection_binding": "live",
+            "item_count": 8,
+            "pdf_count": 6,
+            "rag_doc_count": 5,
+            "include_pdf": True,
+            "include_rag": True,
+            "item_receipts": receipts,
+            "recall_test": {"sampled": 3, "passed": 3},
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        handoff_bad.write_text(json.dumps({
+            "status": "success",
+            "task_collection_binding": "missing",
+            "item_count": 8,
+            "pdf_count": 0,
+            "rag_doc_count": 0,
+            "item_receipts": [],
+            "recall_test": {"sampled": 0, "passed": 0},
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        abstract_ok = work_dir / "abstract-ok.jsonl"
+        abstract_bad = work_dir / "abstract-bad.jsonl"
+        abstract_ok.write_text("\n".join(json.dumps({"title": f"T{i}", "abstract": "摘要", "keywords": ["艺术史"], "item_key": f"K{i}", "pdf_ready": True}, ensure_ascii=False) for i in range(1, 5)) + "\n", encoding="utf-8")
+        abstract_bad.write_text(json.dumps({"title": "T1", "fulltext": "不应出现全文", "api_key": "SECRETSECRETSECRET"}, ensure_ascii=False) + "\n", encoding="utf-8")
+
+        core_ok = work_dir / "core-ok.json"
+        core_bad = work_dir / "core-bad.json"
+        core_ok.write_text(json.dumps({
+            "screened_count": 20,
+            "selected": [{"title": f"T{i}", "selected": True, "scores": {"topic": 0.8, "total": 0.8}, "total": 0.8} for i in range(1, 7)],
+            "rejected": [{"title": f"R{i}", "reason": "below_threshold"} for i in range(1, 15)],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        core_bad.write_text(json.dumps({
+            "screened_count": 20,
+            "selected": [{"title": f"T{i}", "selected": True, "scores": {"topic": 0.8}, "total": 0.8} for i in range(1, 12)],
+            "rejected": [{"title": "R1"}],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        fulltext_ok = work_dir / "fulltext-claims-ok.json"
+        fulltext_bad = work_dir / "fulltext-claims-bad.json"
+        fulltext_ok.write_text(json.dumps({
+            "sample": {"fulltext_sample_count": 22},
+            "coverage": {"rag_available_rate": 0.6},
+            "claims": [{"claim_id": "C1", "evidence_layer": "fulltext", "provenance": [{"source_item_keys": ["K1"], "rag_doc_ids": ["R1"]}]}],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+        fulltext_bad.write_text(json.dumps({
+            "sample": {"fulltext_sample_count": 8},
+            "coverage": {"rag_available_rate": 0.0},
+            "claims": [{"claim_id": "C1", "evidence_layer": "fulltext", "text": "无来源全文结论"}],
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        secret_bad = work_dir / "secret-bad.txt"
+        secret_bad.write_text("python script.py --api-key=SECRETSECRETSECRET\n", encoding="utf-8")
+
         commands = [
             [sys.executable, str(SCRIPTS / "validate_public_introduction.py")],
             [sys.executable, str(SCRIPTS / "validate_readme.py")],
+            [
+                sys.executable,
+                str(SCRIPTS / "screen_titles.py"),
+                "--input",
+                str(title_csv),
+                "--topic-keywords",
+                "碑帖,传播",
+                "--output-json",
+                "title-screening.json",
+                "--output-md",
+                "title-screening.md",
+            ],
+            [
+                sys.executable,
+                str(SCRIPTS / "select_core_library.py"),
+                "--input",
+                str(title_csv),
+                "--topic-keywords",
+                "碑帖,传播",
+                "--output-json",
+                "core-library-generated.json",
+                "--output-md",
+                "core-library-generated.md",
+            ],
             [sys.executable, str(SCRIPTS / "analyze_title_corpus.py"), "--input", str(title_csv), "--output-json", "title.json", "--output-md", "title.md"],
             [sys.executable, str(SCRIPTS / "analyze_column_structure.py"), "--title-list", str(title_csv), "--output-json", "column.json", "--output-md", "column.md"],
             [sys.executable, str(SCRIPTS / "analyze_journal_submission_operations.py"), "--input", str(operations_csv), "--output-json", "operations.json", "--output-md", "operations.md"],
@@ -219,9 +371,27 @@ def main() -> int:
                 "--output",
                 "topic.md",
             ],
+            [sys.executable, str(SCRIPTS / "validate_wenheng_status.py"), "--input", str(status_ok)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "completion-label", "--input", str(status_ok)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "jiansuo-handoff", "--input", str(handoff_ok)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "abstract-metadata-ledger", "--input", str(abstract_ok)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "core-library", "--input", str(core_ok)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "fulltext-claims", "--input", str(fulltext_ok)],
         ]
         for command in commands:
             run(command, work_dir)
+        fail_commands = [
+            [sys.executable, str(SCRIPTS / "validate_wenheng_status.py"), "--input", str(status_bad)],
+            [sys.executable, str(SCRIPTS / "validate_wenheng_status.py"), "--input", str(status_legacy_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "completion-label", "--input", str(status_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "jiansuo-handoff", "--input", str(handoff_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "abstract-metadata-ledger", "--input", str(abstract_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "core-library", "--input", str(core_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "fulltext-claims", "--input", str(fulltext_bad)],
+            [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "secret-boundary", "--input", str(secret_bad)],
+        ]
+        for command in fail_commands:
+            run_expect_fail(command, work_dir)
         if args.keep_temp:
             print(f"smoke tests passed: {work_dir}")
         else:

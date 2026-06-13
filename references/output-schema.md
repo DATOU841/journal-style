@@ -6,11 +6,16 @@
 journal-style-task/
 ├── 00-official/
 ├── 01-title-intake/
+├── 015-title-screening/
 ├── 02-topic-library/
+├── 02b-core-library/
 ├── 025-rag-import/
 ├── 03-analysis/
+│   ├── metadata-layer/
+│   └── fulltext-layer/
 ├── 04-fit-evaluation/
 ├── 05-handoff/
+├── 06-gates/
 ├── scripts/
 └── task-state.json
 ```
@@ -26,7 +31,10 @@ journal-style-task/
   "title_intake_status": "pending",
   "zotero_status": "pending",
   "rag_status": "pending",
-  "analysis_status": "pending",
+  "metadata_analysis_status": "pending",
+  "fulltext_analysis_status": "pending",
+  "overall_journal_style_status": "blocked",
+  "completion_label": "METADATA_ONLY_NOT_FULLTEXT_READY",
   "fit_score": null,
   "recommended_action": "unknown",
   "handoff_targets": [],
@@ -67,11 +75,26 @@ journal-style-task/
   "pipeline_status": {
     "official_check": "pending",
     "title_intake": "pending",
+    "title_screening": "pending",
     "topic_library": "pending",
-    "pdf_check": "pending",
-    "rag_import": "pending",
-    "analysis": "pending",
-    "fit_evaluation": "pending"
+    "zotero_pdf_rag": "pending",
+    "metadata_analysis": "pending",
+    "core_library_selection": "pending",
+    "fulltext_analysis": "blocked",
+    "submission_operations": "pending",
+    "fit_evaluation": "pending",
+    "overall_journal_style": "blocked"
+  },
+  "analysis_layers": {
+    "metadata_layer_status": "pending",
+    "fulltext_layer_status": "blocked",
+    "completion_label": "METADATA_ONLY_NOT_FULLTEXT_READY",
+    "fulltext_evidence": {
+      "core_library_count": 0,
+      "fulltext_sample_count": 0,
+      "rag_available_rate": 0.0,
+      "pdf_coverage_rate": 0.0
+    }
   },
   "metrics": {
     "journal_title_count": 0,
@@ -100,32 +123,60 @@ journal-style-task/
 }
 ```
 
+新版任务应优先使用分层 `pipeline_status`：
+
+```json
+{
+  "pipeline_status": {
+    "official_check": "pending",
+    "title_intake": "pending",
+    "title_screening": "pending",
+    "topic_library": "pending",
+    "zotero_pdf_rag": "pending",
+    "metadata_analysis": "pending",
+    "core_library_selection": "pending",
+    "fulltext_analysis": "blocked",
+    "submission_operations": "pending",
+    "fit_evaluation": "pending",
+    "overall_journal_style": "blocked"
+  }
+}
+```
+
+`metadata_analysis=done` 不等于 `overall_journal_style=done`。只有 `completion_label=FULLTEXT_READY` 且全文/RAG 证据门禁满足时，才允许总状态完成。
+
+Legacy 文件如果仍使用旧字段 `pipeline_status.analysis=done`，必须同时提供 `analysis_layers` 并证明 `fulltext_layer_status=done`。缺少 `analysis_layers` 时不得通过校验。
+
 ## 4. 必需产物清单
 
 - `00-official/journal-identity-confirmation.md`
 - `00-official/journal-official-and-web-evidence.md`
 - `01-title-intake/journal-full-title-list.xlsx`
 - `01-title-intake/journal-title-ingestion-log.md`
+- `015-title-screening/title-screening-ledger.json`
+- `015-title-screening/title-screening-gate.json`
 - `02-topic-library/topic-special-library-plan.md`
 - `02-topic-library/topic-related-title-list.xlsx`
 - `02-topic-library/zotero-and-pdf-check-report.md`
+- `02b-core-library/core-library-ledger.json`
+- `02b-core-library/core-library-rejected.json`
 - `025-rag-import/rag-import-handoff.md`
-- `03-analysis/journal-rag-fulltext-pattern-report.md`
-- `03-analysis/journal-rag-fulltext-pattern-statistics.json`
-- `03-analysis/journal-quantitative-analysis-report.md`
-- `03-analysis/journal-funding-topic-association-report.md`
-- `03-analysis/journal-funding-topic-association-statistics.json`
-- `03-analysis/journal-title-style-report.md`
-- `03-analysis/journal-topic-trend-report.md`
-- `03-analysis/journal-method-material-report.md`
-- `03-analysis/journal-argument-style-report.md`
-- `03-analysis/journal-reference-ecology-report.md`
-- `03-analysis/journal-author-institution-network-report.md`
-- `03-analysis/journal-author-institution-network-statistics.json`
-- `03-analysis/journal-author-profile-and-byline-report.md`
-- `03-analysis/journal-author-profile-and-byline-statistics.json`
-- `03-analysis/journal-reference-network-report.md`
-- `03-analysis/journal-reference-network-statistics.json`
+- `03-analysis/metadata-layer/journal-quantitative-analysis-report.md`
+- `03-analysis/metadata-layer/journal-funding-topic-association-report.md`
+- `03-analysis/metadata-layer/journal-funding-topic-association-statistics.json`
+- `03-analysis/metadata-layer/journal-title-style-report.md`
+- `03-analysis/metadata-layer/journal-topic-trend-report.md`
+- `03-analysis/metadata-layer/journal-author-institution-network-report.md`
+- `03-analysis/metadata-layer/journal-author-institution-network-statistics.json`
+- `03-analysis/metadata-layer/journal-author-profile-and-byline-report.md`
+- `03-analysis/metadata-layer/journal-author-profile-and-byline-statistics.json`
+- `03-analysis/fulltext-layer/journal-rag-fulltext-pattern-report.md`
+- `03-analysis/fulltext-layer/journal-rag-fulltext-pattern-statistics.json`
+- `03-analysis/fulltext-layer/journal-method-material-report.md`
+- `03-analysis/fulltext-layer/journal-argument-style-report.md`
+- `03-analysis/fulltext-layer/journal-reference-ecology-report.md`
+- `03-analysis/fulltext-layer/journal-reference-network-report.md`
+- `03-analysis/fulltext-layer/journal-reference-network-statistics.json`
 - `04-fit-evaluation/submission-fit-score.md`
 - `04-fit-evaluation/journal-submission-operations-report.md`
 - `04-fit-evaluation/journal-submission-operations-statistics.json`
@@ -135,6 +186,12 @@ journal-style-task/
 - `04-fit-evaluation/multi-journal-author-profile-comparison-statistics.json`
 - `05-handoff/handoff-to-downstream-skills.md`
 - `05-handoff/wenheng-center-status.json`
+- `06-gates/completion-label.json`
+- `06-gates/zotero-pdf-rag-handoff.json`
+- `06-gates/abstract-metadata-ledger.json`
+- `06-gates/core-library-selection.json`
+- `06-gates/fulltext-claims.json`
+- `06-gates/secret-boundary.json`
 
 ## 5. 量化分析报告字段
 
