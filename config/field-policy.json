@@ -1,0 +1,83 @@
+{
+  "schema": "journal_style_field_policy_v1",
+  "_note": "Draft for P5 two-way field policy. Extracted from references/secret-boundary-protocol.md, references/stage-gates-protocol.md (abstract-metadata-ledger), and scripts/run_stage_gates.py FORBIDDEN_METADATA_KEYS. Enforces BOTH directions: must keep public metadata (no over-redaction) AND must remove credentials. To be placed at config/field-policy.json.",
+  "_patch_round2": "Added 'institution' to public allowlist (protocol allows it; author-institution-network dimension needs it; same RC4 over-redaction risk). Reworked credential key matching to exact-key / word-boundary matching so whitelisted fields item_key and item_key_hash are NOT falsely flagged as credential 'key'.",
+  "public_metadata_allowlist": {
+    "_rule": "These are public bibliographic metadata. They MUST be preserved, not redacted to placeholders. Over-redaction of these fields is a violation (this round's RC4).",
+    "fields": [
+      "title",
+      "authors",
+      "institution",
+      "column",
+      "year",
+      "issue",
+      "pages",
+      "abstract",
+      "keywords",
+      "doi",
+      "url",
+      "item_key",
+      "item_key_hash",
+      "record_id",
+      "pdf_ready",
+      "rag_ready",
+      "recall_ok",
+      "core_library_selected",
+      "core_score",
+      "core_reason",
+      "core_rank",
+      "provenance_hash"
+    ],
+    "over_redaction_check": {
+      "enabled": true,
+      "_rule": "If a row in source_profiles has these fields redacted to placeholder patterns while the source ledger has real values, fail as OVER_REDACTION.",
+      "placeholder_patterns": [
+        "^redacted-",
+        "^REDACTED",
+        "^\\*+$",
+        "^placeholder"
+      ],
+      "verdict_on_match": "NO_GO"
+    }
+  },
+  "credential_denylist": {
+    "_rule": "These must never appear in evidence, handoff, ledger, logs, or git. Presence triggers NO_GO and human review.",
+    "_key_matching_rule": "Credential key detection MUST use exact field-name match against forbidden_keys OR the value-bearing regexes below. Do NOT use bare substring matching on 'key', which would falsely flag whitelisted item_key / item_key_hash. forbidden_keys are matched as exact lowercased field names only.",
+    "value_patterns": [
+      "--api-key(?:=|\\s+)[A-Za-z0-9_\\-]{12,}",
+      "ZOTERO_API_KEY=[A-Za-z0-9_\\-]{12,}",
+      "\\b(token|cookie|secret|password|bearer)\\b\\s*[:=]\\s*[A-Za-z0-9_\\-]{12,}",
+      "\\bapi[_\\-]?key\\b\\s*[:=]\\s*[A-Za-z0-9_\\-]{12,}"
+    ],
+    "forbidden_keys_exact": [
+      "fulltext",
+      "全文",
+      "pdf_path",
+      "absolute_pdf_path",
+      "rag_chunk",
+      "chunk_text",
+      "vector",
+      "vector_dump",
+      "embedding_raw",
+      "cookie",
+      "token",
+      "api_key",
+      "secret",
+      "password",
+      "bearer",
+      "zotero_db",
+      "browser_profile",
+      "session_data",
+      "dotenv",
+      ".env"
+    ],
+    "_forbidden_keys_note": "Matched only as exact lowercased field names. 'key' is intentionally NOT in this list to avoid colliding with item_key/item_key_hash; credential keys are caught via api_key exact match and the value_patterns regexes.",
+    "verdict_on_match": "NO_GO"
+  },
+  "bulk_content_rule": {
+    "_rule": "Full text / RAG chunks may be READ and ANALYZED by the chain but must NOT be bulk-exported into evidence or reports. Structured tags, counts, short summaries, source refs and provenance are allowed.",
+    "allow_read_analyze": true,
+    "allow_bulk_export": false,
+    "allowed_derivatives": ["structured_tags", "counts", "short_summary", "source_ref", "provenance"]
+  }
+}

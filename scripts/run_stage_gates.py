@@ -20,24 +20,69 @@ COMPLETION_LABELS = {
     "FULLTEXT_READY",
 }
 READY_STATUS = {"done", "complete"}
-SECRET_PATTERNS = [
-    re.compile(r"--api-key(?:=|\s+)[A-Za-z0-9_\-]{12,}"),
-    re.compile(r"ZOTERO_API_KEY=[A-Za-z0-9_\-]{12,}"),
-    re.compile(r"(token|cookie|secret|key)\s*[:=]\s*[A-Za-z0-9_\-]{12,}", re.I),
-]
-FORBIDDEN_METADATA_KEYS = {
-    "fulltext",
-    "全文",
-    "pdf_path",
-    "absolute_pdf_path",
-    "rag_chunk",
-    "chunk_text",
-    "vector",
-    "cookie",
-    "token",
-    "api_key",
-    "secret",
+
+# Fallbacks used only if config/field-policy.json cannot be loaded. The real
+# source of truth is config/field-policy.json (RC2: no second hardcoded copy).
+_FALLBACK_FORBIDDEN_KEYS = {
+    "fulltext", "全文", "pdf_path", "absolute_pdf_path", "rag_chunk",
+    "chunk_text", "vector", "cookie", "token", "api_key", "secret",
 }
+_FALLBACK_SECRET_PATTERNS = [
+    r"--api-key(?:=|\s+)[A-Za-z0-9_\-]{12,}",
+    r"ZOTERO_API_KEY=[A-Za-z0-9_\-]{12,}",
+    r"\b(token|cookie|secret|password|bearer)\b\s*[:=]\s*[A-Za-z0-9_\-]{12,}",
+]
+
+
+# --- Single source of truth (P2/RC2): thresholds come from config/stage-gates.json ---
+def _load_cfg():
+    try:
+        from journal_style_runtime import load_stage_gates, load_field_policy
+        return load_stage_gates(), load_field_policy()
+    except Exception:
+        return {}, {}
+
+_STAGE_GATES, _FIELD_POLICY = _load_cfg()
+_GATES = _STAGE_GATES.get("gates", {})
+_DIM = _STAGE_GATES.get("dimension_thresholds", {})
+
+# Credential policy: load from field-policy.json, fall back to local constants.
+_DENY = _FIELD_POLICY.get("credential_denylist", {}) if isinstance(_FIELD_POLICY, dict) else {}
+FORBIDDEN_METADATA_KEYS = {
+    str(k).lower() for k in _DENY.get("forbidden_keys_exact", _FALLBACK_FORBIDDEN_KEYS)
+}
+SECRET_PATTERNS = [
+    re.compile(p, re.I) for p in _DENY.get("value_patterns", _FALLBACK_SECRET_PATTERNS)
+]
+
+
+def _cfg(path, default):
+    """Dotted lookup into the stage-gates config with a fallback default."""
+    cur = _STAGE_GATES
+    for key in path.split("."):
+        if isinstance(cur, dict) and key in cur:
+            cur = cur[key]
+        else:
+            return default
+    return cur
+
+# FULLTEXT_READY thresholds
+FT_SAMPLE_MIN = _cfg("gates.no-metadata-only-completion.fulltext_ready_requires.fulltext_sample_count_min", 20)
+FT_RAG_MIN = _cfg("gates.no-metadata-only-completion.fulltext_ready_requires.rag_available_rate_min", 0.5)
+FT_PDF_MIN = _cfg("gates.no-metadata-only-completion.fulltext_ready_requires.pdf_coverage_rate_min", 0.2)
+# core library ratio
+CORE_RATIO_MIN = _cfg("gates.core-library-selection.ratio_min", 0.25)
+CORE_RATIO_MAX = _cfg("gates.core-library-selection.ratio_max", 0.40)
+# handoff thresholds
+HANDOFF_RECEIPT_MIN = _cfg("gates.zotero-pdf-rag-handoff.success_thresholds.receipt_coverage_of_item_count_min", 0.8)
+HANDOFF_PDF_MIN = _cfg("gates.zotero-pdf-rag-handoff.success_thresholds.pdf_count_over_item_count_min", 0.5)
+HANDOFF_RAG_MIN = _cfg("gates.zotero-pdf-rag-handoff.success_thresholds.rag_doc_over_pdf_count_min", 0.8)
+# fulltext-claims thresholds
+CLAIM_SAMPLE_OBS_MIN = _cfg("gates.no-fulltext-claim-without-rag.sample_observation_min", 10)
+CLAIM_STABLE_MIN = _cfg("gates.no-fulltext-claim-without-rag.stable_style_claim_min", 20)
+CLAIM_RAG_MIN = _cfg("gates.no-fulltext-claim-without-rag.rag_available_rate_min", 0.5)
+# abstract coverage warn
+ABSTRACT_WARN_BELOW = _cfg("gates.abstract-metadata-ledger.abstract_coverage_warn_below", 0.5)
 
 
 def load_json(path: Path):
@@ -107,12 +152,12 @@ def gate_completion_label(path: Path) -> dict:
     if label == "FULLTEXT_READY":
         if fulltext_status not in READY_STATUS:
             problems.append("FULLTEXT_READY requires fulltext_layer_status=done")
-        if fulltext_count < 20:
-            problems.append("FULLTEXT_READY requires at least 20 fulltext samples")
-        if rag_rate < 0.5:
-            problems.append("FULLTEXT_READY requires rag_available_rate >= 0.5")
-        if pdf_rate < 0.2:
-            problems.append("FULLTEXT_READY requires pdf_coverage_rate >= 0.2")
+        if fulltext_count < FT_SAMPLE_MIN:
+            problems.append(f"FULLTEXT_READY requires at least {FT_SAMPLE_MIN} fulltext samples")
+        if rag_rate < FT_RAG_MIN:
+            problems.append(f"FULLTEXT_READY requires rag_available_rate >= {FT_RAG_MIN}")
+        if pdf_rate < FT_PDF_MIN:
+            problems.append(f"FULLTEXT_READY requires pdf_coverage_rate >= {FT_PDF_MIN}")
     if not label:
         warnings.append("completion_label missing; legacy status accepted but should be upgraded")
 
@@ -168,11 +213,11 @@ def gate_jiansuo_handoff(path: Path) -> dict:
     if item_count and len(receipt_titles) < min(item_count, len(receipts)):
         warnings.append("item_count and unique receipt titles differ; check duplicates")
     if status == "success":
-        if item_count <= 0 or len(receipts) < max(1, int(item_count * 0.8)):
+        if item_count <= 0 or len(receipts) < max(1, int(item_count * HANDOFF_RECEIPT_MIN)):
             problems.append("success handoff requires item receipts for at least 80% of item_count")
-        if data.get("include_pdf", True) and item_count and pdf_count / item_count < 0.5:
+        if data.get("include_pdf", True) and item_count and pdf_count / item_count < HANDOFF_PDF_MIN:
             problems.append("success handoff requires pdf_count/item_count >= 0.5")
-        if data.get("include_rag", True) and pdf_count and rag_count / pdf_count < 0.8:
+        if data.get("include_rag", True) and pdf_count and rag_count / pdf_count < HANDOFF_RAG_MIN:
             problems.append("success handoff requires rag_doc_count/pdf_count >= 0.8")
         if data.get("acceptance", {}).get("require_recall_test", True):
             if int(recall.get("sampled") or 0) <= 0 or int(recall.get("passed") or 0) <= 0:
@@ -220,7 +265,7 @@ def gate_abstract_metadata_ledger(path: Path) -> dict:
     keyword_rate = keyword_count / total if total else 0
     if total == 0:
         problems.append("abstract metadata ledger is empty")
-    if abstract_rate < 0.5:
+    if abstract_rate < ABSTRACT_WARN_BELOW:
         warnings.append("abstract coverage below 50%; trend and method claims must be downgraded")
     verdict = NO_GO if problems else DEGRADED if warnings else PASS
     return result(
@@ -243,7 +288,7 @@ def gate_core_library(path: Path) -> dict:
     ratio = selected_count / total if total else 0
     if total <= 0:
         problems.append("missing screened_count/kept_count")
-    if ratio < 0.25 or ratio > 0.4:
+    if ratio < CORE_RATIO_MIN or ratio > CORE_RATIO_MAX:
         problems.append(f"core library ratio out of 25%-40% range: {ratio:.4f}")
     for item in selected:
         scores = item.get("scores") or {}
@@ -277,12 +322,12 @@ def gate_fulltext_claims(path: Path) -> dict:
             provenance = claim.get("provenance") or claim.get("source_item_keys") or claim.get("rag_doc_ids")
             if not provenance:
                 problems.append(f"fulltext claim lacks provenance: {claim.get('claim_id') or claim.get('text')}")
-    if sample_count < 10:
+    if sample_count < CLAIM_SAMPLE_OBS_MIN:
         warnings.append("fulltext sample below 10; only sample observations are allowed")
-    elif sample_count < 20:
+    elif sample_count < CLAIM_STABLE_MIN:
         warnings.append("fulltext sample below 20; stable journal-wide style claims are not allowed")
-    if rag_rate < 0.5:
-        warnings.append("rag_available_rate below 0.5; argument/reference ecology claims must be downgraded")
+    if rag_rate < CLAIM_RAG_MIN:
+        warnings.append("rag_available_rate below threshold; argument/reference ecology claims must be downgraded")
     verdict = NO_GO if problems else DEGRADED if warnings else PASS
     return result(
         "no-fulltext-claim-without-rag",
@@ -290,6 +335,95 @@ def gate_fulltext_claims(path: Path) -> dict:
         problems,
         warnings,
         {"claim_count": len(claims), "fulltext_sample_count": sample_count, "rag_available_rate": rag_rate},
+    )
+
+
+def gate_material_intake(path: Path) -> dict:
+    """Step-0 manifest gate: the manifest must be well-formed, register at least
+    one asset, and carry per-asset sha256 so later provenance back-references
+    (P4) have something to bind to. This unblocks step00 in the runner."""
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    schema = data.get("schema")
+    registered = data.get("registered_assets") or {}
+    gaps = data.get("gaps") or []
+    if schema != "journal_style_material_intake_manifest_v1":
+        problems.append(f"unexpected manifest schema: {schema}")
+    if not isinstance(registered, dict) or not registered:
+        problems.append("manifest registers no assets")
+    for name, asset in (registered.items() if isinstance(registered, dict) else []):
+        if not asset.get("sha256"):
+            problems.append(f"registered asset '{name}' missing sha256")
+        if not asset.get("rel_path"):
+            problems.append(f"registered asset '{name}' missing rel_path")
+    if gaps:
+        warnings.append(f"{len(gaps)} candidate assets absent at intake (recorded as gaps)")
+    verdict = NO_GO if problems else DEGRADED if warnings else PASS
+    return result(
+        "material-intake",
+        verdict,
+        problems,
+        warnings,
+        {"registered_count": len(registered) if isinstance(registered, dict) else 0,
+         "gap_count": len(gaps)},
+    )
+
+
+def gate_dimension_evidence(path: Path) -> dict:
+    """Consume dimension_thresholds from stage-gates.json (RC: make them load-
+    bearing, not decorative). Each analysis dimension declares its id and
+    evidence counts; the gate downgrades or fails by the configured thresholds
+    instead of relying on prose."""
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    dims = data.get("dimensions") or data.get("dimension_evidence") or []
+    if not dims:
+        problems.append("no dimension evidence declared")
+    checked = 0
+    degraded_dims: list[str] = []
+    for entry in dims:
+        dim_id = entry.get("dimension") or entry.get("id")
+        thresholds = _DIM.get(dim_id) if dim_id else None
+        if not dim_id:
+            problems.append("dimension entry missing 'dimension' id")
+            continue
+        if not thresholds:
+            warnings.append(f"dimension '{dim_id}' has no configured threshold; not validated")
+            continue
+        checked += 1
+        counts = entry.get("counts") or {}
+        numeric_thresholds = {
+            k: v for k, v in thresholds.items()
+            if not k.startswith("_") and not k.endswith("_label")
+            and isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+        if numeric_thresholds and not counts:
+            problems.append(f"dimension '{dim_id}' declares no evidence counts")
+        below = []
+        for key, bound in numeric_thresholds.items():
+            observed = counts.get(key)
+            if observed is None:
+                # Only thresholds the report chose to declare are evaluated; an
+                # undeclared metric is a coverage warning, not a hard NO_GO.
+                warnings.append(f"dimension '{dim_id}' did not declare count '{key}'")
+                continue
+            is_max = key.endswith("_max")
+            if is_max and as_float(observed) > float(bound):
+                below.append(f"{key}={observed}>{bound}")
+            elif not is_max and as_float(observed) < float(bound):
+                below.append(f"{key}={observed}<{bound}")
+        if below:
+            degraded_dims.append(dim_id)
+            warnings.append(f"dimension '{dim_id}' below threshold: {', '.join(below)}; claim must be downgraded")
+    verdict = NO_GO if problems else DEGRADED if warnings else PASS
+    return result(
+        "dimension-evidence",
+        verdict,
+        problems,
+        warnings,
+        {"dimensions_checked": checked, "degraded_dimensions": degraded_dims},
     )
 
 
@@ -305,6 +439,8 @@ def main() -> int:
             "abstract-metadata-ledger",
             "core-library",
             "fulltext-claims",
+            "material-intake",
+            "dimension-evidence",
         ],
     )
     parser.add_argument("--input", required=True)
@@ -319,6 +455,8 @@ def main() -> int:
         "abstract-metadata-ledger": gate_abstract_metadata_ledger,
         "core-library": gate_core_library,
         "fulltext-claims": gate_fulltext_claims,
+        "material-intake": gate_material_intake,
+        "dimension-evidence": gate_dimension_evidence,
     }
     gate_result = handlers[args.gate](input_path)
     text = json.dumps(gate_result, ensure_ascii=False, indent=2)

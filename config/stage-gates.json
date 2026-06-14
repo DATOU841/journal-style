@@ -1,0 +1,152 @@
+{
+  "schema": "journal_style_stage_gates_v1",
+  "_note": "Draft extracted from references/evidence-rules.md and scripts/run_stage_gates.py constants. Machine-readable single source of truth for gate thresholds; REPLACES hardcoded Python constants in run_stage_gates.py. After P2, run_stage_gates.py and the new gate-runner MUST both read thresholds from this file; no threshold may remain hardcoded in Python. To be placed at config/stage-gates.json.",
+  "_patch_round2": "Added zotero-pdf-rag-handoff numeric gates (0.8/0.5/0.8) and warning thresholds that were present in run_stage_gates.py but dropped in the first draft. dimension_thresholds are now declared MUST-be-consumed by a gate, not decorative.",
+  "completion_labels": [
+    "METADATA_ONLY_NOT_FULLTEXT_READY",
+    "FULLTEXT_PARTIAL",
+    "FULLTEXT_READY"
+  ],
+  "ready_status": [
+    "done",
+    "complete"
+  ],
+  "gates": {
+    "no-metadata-only-completion": {
+      "fail_closed": true,
+      "fulltext_ready_requires": {
+        "fulltext_layer_status": "done",
+        "fulltext_sample_count_min": 20,
+        "rag_available_rate_min": 0.5,
+        "pdf_coverage_rate_min": 0.2
+      },
+      "forbid": [
+        "overall_done_while_fulltext_not_done",
+        "metadata_only_promoted_to_overall"
+      ]
+    },
+    "core-library-selection": {
+      "fail_closed": true,
+      "ratio_min": 0.25,
+      "ratio_max": 0.4,
+      "require_multifactor_scores": true,
+      "require_rejected_reason": true,
+      "factor_weights": {
+        "topic_similarity": 0.25,
+        "column_similarity": 0.15,
+        "material_method_similarity": 0.15,
+        "theory_art_history_relevance": 0.15,
+        "fulltext_availability": 0.15,
+        "year_column_representation": 0.15
+      }
+    },
+    "no-fulltext-claim-without-rag": {
+      "fail_closed": true,
+      "require_provenance": true,
+      "sample_observation_min": 10,
+      "stable_style_claim_min": 20,
+      "rag_available_rate_warn_below": 0.5
+    },
+    "zotero-pdf-rag-handoff": {
+      "fail_closed": true,
+      "authority": "item_receipts",
+      "runner_report_is_authority": false,
+      "success_requires": [
+        "task_collection_binding",
+        "item_level_receipts",
+        "pdf_rag_counts",
+        "recall_test"
+      ],
+      "success_thresholds": {
+        "_source": "run_stage_gates.py gate_jiansuo_handoff",
+        "receipt_coverage_of_item_count_min": 0.8,
+        "pdf_count_over_item_count_min": 0.5,
+        "rag_doc_over_pdf_count_min": 0.8,
+        "recall_test_sampled_min": 1,
+        "recall_test_passed_min": 1
+      }
+    },
+    "abstract-metadata-ledger": {
+      "fail_closed": true,
+      "field_policy_ref": "config/field-policy.json",
+      "abstract_coverage_warn_below": 0.5
+    },
+    "secret-boundary": {
+      "fail_closed": true,
+      "field_policy_ref": "config/field-policy.json"
+    }
+  },
+  "dimension_thresholds": {
+    "_source": "references/evidence-rules.md section 2-3",
+    "_rule": "MUST be consumed by a dimension-evidence gate (gate-runner reads these to decide PASS/DEGRADED per analysis dimension). These are NOT decorative; a dimension claim that does not meet its threshold must be downgraded by the gate, not by prose.",
+    "title_style": {
+      "min_titles": 50,
+      "below_min_label": "样本不足"
+    },
+    "topic_trend": {
+      "min_titles": 100,
+      "year_coverage_min": 0.8
+    },
+    "column_structure": {
+      "year_coverage_min": 0.8
+    },
+    "funding_topic": {
+      "min_funded_titles": 50,
+      "funding_field_coverage_min": 0.5,
+      "tier_min_count": 5
+    },
+    "material_preference": {
+      "min_fulltext": 20,
+      "pdf_coverage_min": 0.3
+    },
+    "method_preference": {
+      "min_fulltext": 20,
+      "pdf_coverage_min": 0.3
+    },
+    "argument_style": {
+      "min_fulltext_or_rag": 30,
+      "rag_available_rate_min": 0.5
+    },
+    "rag_fulltext_pattern": {
+      "sample_observation_min": 10,
+      "stable_observation_min": 20
+    },
+    "reference_ecology": {
+      "min_fulltext_or_reflist": 30,
+      "rag_available_rate_min": 0.5
+    },
+    "author_institution_network": {
+      "min_titles": 50,
+      "author_field_missing_max": 0.3,
+      "institution_field_missing_max": 0.3
+    },
+    "author_profile_byline": {
+      "min_titles": 50,
+      "title_degree_funding_coverage_min": 0.5
+    },
+    "multi_journal_author_compare": {
+      "min_journals": 2,
+      "per_journal_min_titles": 50,
+      "compare_field_coverage_min": 0.5
+    },
+    "reference_network": {
+      "min_source_articles": 20,
+      "min_reference_records": 200,
+      "cited_title_missing_max": 0.3,
+      "cited_year_missing_max": 0.3
+    },
+    "format_convention": {
+      "min_fulltext": 10,
+      "pdf_coverage_min": 0.2
+    },
+    "_enforcement": {
+      "consumed_by_gate": "dimension-evidence-gate",
+      "rule": "Every analysis report MUST declare its dimension id and evidence counts (sample size, year_coverage, pdf_coverage, rag_available_rate, field missing rates as applicable). The dimension-evidence-gate reads these thresholds and computes verdict: below min sample/coverage -> DEGRADED with mandated downgrade label; missing declared counts -> NO_GO. Thresholds here are authoritative; run_stage_gates.py and the runner MUST read this file, not hardcode constants.",
+      "fail_closed": true,
+      "downgrade_labels_from": "references/evidence-rules.md section 3"
+    }
+  },
+  "_threshold_source_of_truth": {
+    "rule": "This file is the single source of truth for all gate thresholds. scripts/run_stage_gates.py MUST load values from here instead of module-level constants (RC2 fix). The runner复核s gate.sha against on-disk artifact sha before consuming any gate verdict (P2 sha chain)."
+  }
+}

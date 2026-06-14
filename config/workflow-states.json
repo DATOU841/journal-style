@@ -1,0 +1,218 @@
+{
+  "schema": "journal_style_workflow_states_v1",
+  "_note": "Machine-readable state machine for the journal-style runner. Each step declares entry conditions, required inputs, produced artifacts, governing gate, and next step. The runner advances strictly in order; a step cannot be entered until its prerequisite step is gate-verified. Steps without a gate cannot be marked satisfied_by_prior_run (P6 iron rule).",
+  "authoritative_state_file": "current-run-state.json",
+  "read_only_mirrors": [
+    "task-state.json",
+    "05-handoff/wenheng-center-status.json"
+  ],
+  "steps": [
+    {
+      "id": "step00_material_intake",
+      "name": "Step 0 material intake manifest",
+      "entry": [
+        "task_skeleton_exists"
+      ],
+      "requires_inputs": [],
+      "produces": [
+        "00-intake/material-intake-manifest.json"
+      ],
+      "gate": "material-intake",
+      "next": "step01_init",
+      "resume_skippable": false,
+      "_skip_note": "Has gate; may be satisfied only if manifest passes material-intake gate with current sha."
+    },
+    {
+      "id": "step01_init",
+      "name": "Step 1 init task",
+      "entry": [
+        "step00_material_intake.satisfied"
+      ],
+      "requires_inputs": [
+        "00-intake/material-intake-manifest.json"
+      ],
+      "produces": [
+        "00-intake/task-init.json"
+      ],
+      "gate": null,
+      "next": "step02_identity",
+      "resume_skippable": false,
+      "_skip_note": "Produces a non-mirror init receipt (task-init.json), NOT task-state.json. No gate -> cannot be auto-skipped via resume; must be re-run."
+    },
+    {
+      "id": "step02_identity",
+      "name": "Step 2 journal identity confirmation",
+      "entry": [
+        "step01_init.satisfied"
+      ],
+      "requires_inputs": [
+        "00-intake/material-intake-manifest.json"
+      ],
+      "produces": [
+        "00-official/journal-identity-confirmation.md",
+        "00-official/journal-official-and-web-evidence.md"
+      ],
+      "gate": null,
+      "next": "step03_title_intake",
+      "resume_skippable": false
+    },
+    {
+      "id": "step03_title_intake",
+      "name": "Step 3 full title intake",
+      "entry": [
+        "step02_identity.satisfied"
+      ],
+      "requires_inputs": [
+        "00-intake/material-intake-manifest.json"
+      ],
+      "produces": [
+        "01-title-intake/journal-full-title-list.xlsx",
+        "01-title-intake/journal-title-ingestion-log.md"
+      ],
+      "gate": null,
+      "next": "step04_title_screening",
+      "resume_skippable": false
+    },
+    {
+      "id": "step04_title_screening",
+      "name": "Step 4 title screening",
+      "entry": [
+        "step03_title_intake.satisfied"
+      ],
+      "requires_inputs": [
+        "01-title-intake/journal-full-title-list.xlsx"
+      ],
+      "produces": [
+        "015-title-screening/title-screening-ledger.json",
+        "06-gates/title-screening-gate.json"
+      ],
+      "gate": null,
+      "next": "step05_topic_library",
+      "resume_skippable": false
+    },
+    {
+      "id": "step05_topic_library",
+      "name": "Step 5 topic special library",
+      "entry": [
+        "step04_title_screening.satisfied"
+      ],
+      "requires_inputs": [
+        "015-title-screening/title-screening-ledger.json"
+      ],
+      "produces": [
+        "02-topic-library/topic-special-library-plan.md",
+        "02-topic-library/topic-related-title-list.xlsx"
+      ],
+      "gate": null,
+      "next": "step06_zotero_pdf_rag",
+      "resume_skippable": false
+    },
+    {
+      "id": "step06_zotero_pdf_rag",
+      "name": "Step 6 Zotero/PDF/RAG verification",
+      "entry": [
+        "step05_topic_library.satisfied"
+      ],
+      "requires_inputs": [
+        "02-topic-library/topic-related-title-list.xlsx"
+      ],
+      "produces": [
+        "06-gates/zotero-pdf-rag-handoff.json"
+      ],
+      "gate": "zotero-pdf-rag-handoff",
+      "next": "step07_core_library",
+      "resume_skippable": true,
+      "_skip_note": "External jiansuo-ruku work. May be satisfied_by_prior_run ONLY if handoff artifact passes zotero-pdf-rag-handoff gate with current sha."
+    },
+    {
+      "id": "step07_core_library",
+      "name": "Step 7 core library selection",
+      "entry": [
+        "step06_zotero_pdf_rag.satisfied"
+      ],
+      "requires_inputs": [
+        "015-title-screening/title-screening-ledger.json",
+        "06-gates/zotero-pdf-rag-handoff.json"
+      ],
+      "produces": [
+        "02b-core-library/core-library-ledger.json",
+        "02b-core-library/core-library-rejected.json"
+      ],
+      "gate": "core-library-selection",
+      "next": "step08a_metadata_layer",
+      "resume_skippable": true
+    },
+    {
+      "id": "step08a_metadata_layer",
+      "name": "Step 8a metadata-layer analysis",
+      "entry": [
+        "step07_core_library.satisfied"
+      ],
+      "requires_inputs": [
+        "02b-core-library/core-library-ledger.json"
+      ],
+      "produces": [
+        "03-analysis/metadata-layer/"
+      ],
+      "gate": "abstract-metadata-ledger",
+      "next": "step08b_fulltext_layer",
+      "resume_skippable": true
+    },
+    {
+      "id": "step08b_fulltext_layer",
+      "name": "Step 8b fulltext-layer analysis",
+      "entry": [
+        "step08a_metadata_layer.satisfied"
+      ],
+      "requires_inputs": [
+        "02b-core-library/core-library-ledger.json",
+        "03-analysis/fulltext-layer/source-profiles.jsonl"
+      ],
+      "produces": [
+        "03-analysis/fulltext-layer/journal-rag-fulltext-pattern-report.md",
+        "03-analysis/fulltext-layer/journal-method-material-report.md",
+        "03-analysis/fulltext-layer/journal-argument-style-report.md",
+        "03-analysis/fulltext-layer/journal-reference-ecology-report.md",
+        "03-analysis/fulltext-layer/journal-reference-network-report.md"
+      ],
+      "gate": "no-fulltext-claim-without-rag",
+      "next": "step09_fit",
+      "resume_skippable": false
+    },
+    {
+      "id": "step09_fit",
+      "name": "Step 9 submission fit scoring",
+      "entry": [
+        "step08b_fulltext_layer.satisfied"
+      ],
+      "requires_inputs": [
+        "03-analysis/fulltext-layer/journal-rag-fulltext-pattern-report.md"
+      ],
+      "produces": [
+        "04-fit-evaluation/submission-fit-score.md"
+      ],
+      "gate": null,
+      "next": "step10_handoff",
+      "resume_skippable": false
+    },
+    {
+      "id": "step10_handoff",
+      "name": "Step 10 topic suggestion and handoff",
+      "entry": [
+        "step09_fit.satisfied"
+      ],
+      "requires_inputs": [
+        "04-fit-evaluation/submission-fit-score.md"
+      ],
+      "produces": [
+        "04-fit-evaluation/topic-suggestion-report.md",
+        "04-fit-evaluation/target-journal-decision.md",
+        "05-handoff/handoff-to-downstream-skills.md",
+        "05-handoff/wenheng-center-status.json"
+      ],
+      "gate": "no-metadata-only-completion",
+      "next": null,
+      "resume_skippable": false
+    }
+  ]
+}

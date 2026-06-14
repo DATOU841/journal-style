@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 DEFAULT_DIRS = [
+    "00-intake",
     "00-official",
     "01-title-intake",
     "015-title-screening",
@@ -76,6 +77,22 @@ def main() -> int:
         },
     }
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # Non-mirror init receipt: this is the artifact step01 "produces". task-state.json
+    # is a runner-written read-only mirror, so it must NOT be step01's produced
+    # artifact (otherwise the runner would auto-satisfy step01 with its own mirror).
+    init_receipt = {
+        "schema": "journal_style_task_init_v1",
+        "skill_id": "journal-style",
+        "task_id": args.task_id,
+        "journal_name": args.journal_name,
+        "input": payload["input"],
+        "created_at": payload["updated_at"],
+        "_rule": "Authored by build_task_skeleton at init; never a state mirror.",
+    }
+    (task_dir / "00-intake").mkdir(parents=True, exist_ok=True)
+    (task_dir / "00-intake" / "task-init.json").write_text(
+        json.dumps(init_receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     wenheng_path = task_dir / "05-handoff" / "wenheng-center-status.json"
     if not wenheng_path.exists() or args.force:

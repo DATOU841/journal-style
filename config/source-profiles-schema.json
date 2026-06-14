@@ -1,0 +1,62 @@
+{
+  "schema": "journal_style_source_profiles_v1",
+  "_note": "P4: 检索入库 -> journal-style 的正式交接契约。把一次性 bridge v2 固化成长期 schema。runner 不重跑 CNKI/Zotero/PDF/RAG，对上游成果的全部信任压在本契约上，因此 provenance 必须能反查 Step0 manifest。",
+  "row_required_fields": [
+    "title",
+    "authors",
+    "column",
+    "year",
+    "item_key",
+    "provenance_hash"
+  ],
+  "row_recommended_fields": [
+    "issue",
+    "pages",
+    "abstract",
+    "keywords",
+    "doi",
+    "url",
+    "item_key_hash",
+    "record_id",
+    "pdf_ready",
+    "rag_ready",
+    "recall_ok",
+    "core_library_selected",
+    "core_score",
+    "core_reason",
+    "core_rank",
+    "source_ref"
+  ],
+  "join": {
+    "_rule": "core_library_selected=true 的行必须能 join 回 Step7 core-library-ledger.json。",
+    "join_key": "item_key",
+    "fallback_join": [
+      "title",
+      "year"
+    ],
+    "core_join_completeness_min": 0.9,
+    "verdict_below_min": "DEGRADED",
+    "verdict_when_join_key_absent": "NO_GO",
+    "join_keys_priority": [
+      "record_id",
+      "item_key",
+      [
+        "title",
+        "year"
+      ]
+    ]
+  },
+  "field_completeness": {
+    "required_field_coverage_min": 1.0,
+    "recommended_field_coverage_warn_below": 0.6
+  },
+  "provenance_back_reference": {
+    "_rule": "source_profiles 文件本身必须已在 Step0 material-intake-manifest 注册，且当前 sha256 与 manifest 记录一致；其 source_ref 指向的上游 ledger 也应可追溯。来路不明的 profiles 即便字段齐全也判 NO_GO。",
+    "manifest_asset_name": "source_profiles",
+    "require_registered_in_manifest": true,
+    "require_sha_match": true,
+    "require_source_ref": true,
+    "verdict_on_unregistered": "NO_GO",
+    "verdict_on_sha_mismatch": "NO_GO"
+  }
+}
