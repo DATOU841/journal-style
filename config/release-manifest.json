@@ -1,0 +1,37 @@
+{
+  "schema": "journal_style_release_manifest_v1",
+  "release_id": "journal-style@0.1.9+bf8329ec1f9e",
+  "version": "0.1.9",
+  "manifest_generated_from_commit": "bf8329ec1f9e4443c871c9c1af5a84a7b6c394c7",
+  "generated_at": "2026-06-14T23:29:10.723345Z",
+  "config_sha256": {
+    "config/workflow-states.json": "e58deba6429fa75cf8db5548b57d20a373298840664f167bc83a5266096ad1cc",
+    "config/stage-gates.json": "ed9e800c4616a357cfd57fc808585cd57ff4c84ba6daac4d90fd2e9302dc99b0",
+    "config/field-policy.json": "e1b895cd7bcb0bce97e0394254a6a75908c12f31ec18c91b7347f1a5a5938081",
+    "config/source-profiles-schema.json": "ca2218495b82b319b151cf9b0b9a77f861fc3c06c29555a06e7defd0b6851afe"
+  },
+  "script_sha256": {
+    "scripts/journal_style_runner.py": "2986ca214f23f9fc4fdcf019b8f4e16396ced66d7659e3ed006f13355e0d85c5",
+    "scripts/gate_runner.py": "3e66c3a148edb6db673d04cea2175378abdb9af3d7ae88fa6fed95d91083d2e1",
+    "scripts/journal_style_resume.py": "4306b92cd00e3c073218c7a230bb8b404e25f4943045fc57b917f0534c64c8e2",
+    "scripts/journal_style_runtime.py": "a220735ee23bd58a595840a221189665a22f0d946f791b782734d945347e8a84",
+    "scripts/run_stage_gates.py": "f3ab1c1668b11761468e67741c252b446389928ac37865c66aab76334e9b4b85",
+    "scripts/task_adapter.py": "023af179b06c446e615b282d8ab997b66fbf87a683d7a8b05b86a997d0bb496b"
+  },
+  "mode_policy": {
+    "git": {
+      "required": [
+        "manifest present",
+        "tracked config/script sha match manifest"
+      ],
+      "note": "Commit hash is recorded as provenance, not used as a self-referential same-commit check."
+    },
+    "bundle": {
+      "required": [
+        "manifest present",
+        "tracked config/script sha match manifest"
+      ]
+    }
+  },
+  "_rule": "Runtime detects post-release byte drift in manifest-tracked config/scripts and fails closed. Release re-signing must use --require-clean; task-level path adaptation must use task-adapter-manifest.json."
+}
