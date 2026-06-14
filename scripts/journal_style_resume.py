@@ -24,12 +24,22 @@ from pathlib import Path
 
 from journal_style_runtime import (
     GATE_ID_MAP,
+    ReleaseIntegrityError,
+    assert_release_integrity,
+    integrity_failure_payload,
     load_json,
     load_state,
     load_workflow_states,
     now_iso,
+    record_integrity_failure,
     resolve_gate_input,
     write_state,
+)
+from task_adapter import (
+    TaskAdapterError,
+    adapter_failure_payload,
+    load_task_adapter,
+    validate_task_adapter,
 )
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -47,6 +57,22 @@ def main() -> int:
     args = parser.parse_args()
 
     task_dir = args.task_dir.expanduser().resolve()
+
+    # Fail-closed release integrity guard before any resume decision.
+    try:
+        assert_release_integrity()
+    except ReleaseIntegrityError as exc:
+        record_integrity_failure(task_dir, "resume", exc)
+        print(json.dumps(integrity_failure_payload(exc, "resume", task_dir),
+                         ensure_ascii=False, indent=2))
+        return 3
+
+    try:
+        overrides = validate_task_adapter(load_task_adapter(task_dir), task_dir)
+    except TaskAdapterError as exc:
+        print(json.dumps(adapter_failure_payload(exc, task_dir), ensure_ascii=False, indent=2))
+        return 4
+
     workflow = load_workflow_states()
     steps = step_index(workflow)
     manifest = load_json(args.resume_manifest)
@@ -72,7 +98,7 @@ def main() -> int:
             rejected.append(step_id)
             continue
         gate_id = GATE_ID_MAP.get(gate)
-        gate_input = resolve_gate_input(task_dir, step)
+        gate_input = resolve_gate_input(task_dir, step, overrides)
         if not gate_id or gate_input is None or not gate_input.exists():
             decisions.append({
                 "step": step_id, "decision": "reject",
@@ -123,6 +149,7 @@ def main() -> int:
     state["resume"] = {
         "accepted_satisfied": accepted,
         "rejected_must_execute": rejected,
+        "applied_overrides": list(overrides.values()),
         "evaluated_at": result["evaluated_at"],
     }
     write_state(task_dir, state)

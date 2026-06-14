@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,8 +24,39 @@ CONFIG_DIR = SKILL_ROOT / "config"
 STAGE_GATES_PATH = CONFIG_DIR / "stage-gates.json"
 FIELD_POLICY_PATH = CONFIG_DIR / "field-policy.json"
 WORKFLOW_STATES_PATH = CONFIG_DIR / "workflow-states.json"
+RELEASE_MANIFEST_PATH = CONFIG_DIR / "release-manifest.json"
 
 AUTHORITATIVE_STATE_FILE = "current-run-state.json"
+
+MANIFEST_TRACKED_CONFIG = [
+    "config/workflow-states.json",
+    "config/stage-gates.json",
+    "config/field-policy.json",
+    "config/source-profiles-schema.json",
+]
+
+MANIFEST_TRACKED_SCRIPTS = [
+    "scripts/journal_style_runner.py",
+    "scripts/gate_runner.py",
+    "scripts/journal_style_resume.py",
+    "scripts/journal_style_runtime.py",
+    "scripts/run_stage_gates.py",
+    "scripts/task_adapter.py",
+]
+
+OVERRIDE_ALLOWED_STEPS = {
+    "step06_zotero_pdf_rag",
+    "step08a_metadata_layer",
+}
+
+
+class ReleaseIntegrityError(RuntimeError):
+    """Raised when the skill release files no longer match the manifest."""
+
+    def __init__(self, reason: str, details: dict | None = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details or {}
 
 
 def now_iso() -> str:
@@ -46,6 +78,10 @@ def load_field_policy() -> dict:
 
 def load_workflow_states() -> dict:
     return load_json(WORKFLOW_STATES_PATH)
+
+
+def skill_rel(path: Path) -> str:
+    return Path(path).resolve().relative_to(SKILL_ROOT).as_posix()
 
 
 def sha256_file(path: Path) -> str:
@@ -81,6 +117,123 @@ def sha256_artifact(path: Path) -> str:
     return sha256_file(p)
 
 
+def detect_runtime_mode() -> str:
+    """Return git when this skill is running from a checkout, else bundle."""
+    if (SKILL_ROOT / ".git").exists():
+        try:
+            subprocess.run(
+                ["git", "-C", str(SKILL_ROOT), "rev-parse", "--is-inside-work-tree"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return "git"
+        except Exception:
+            pass
+    return "bundle"
+
+
+def git_head() -> str:
+    proc = subprocess.run(
+        ["git", "-C", str(SKILL_ROOT), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout.strip()
+
+
+def _manifest_expected_sha(manifest: dict, rel: str) -> str | None:
+    if rel.startswith("config/"):
+        return (manifest.get("config_sha256") or {}).get(rel)
+    return (manifest.get("script_sha256") or {}).get(rel)
+
+
+def assert_release_integrity(mode: str | None = None) -> dict:
+    """Fail closed if published config/script files drift from the manifest.
+
+    The manifest is the release-time trust anchor. We intentionally do not
+    require a same-commit self-match inside the manifest: committing the manifest
+    changes the commit hash. Git mode records HEAD for evidence; bundle mode uses
+    the same sha checks without requiring .git.
+    """
+    runtime_mode = mode or detect_runtime_mode()
+    if not RELEASE_MANIFEST_PATH.is_file():
+        raise ReleaseIntegrityError(
+            "release manifest missing",
+            {"path": str(RELEASE_MANIFEST_PATH), "mode": runtime_mode},
+        )
+    manifest = load_json(RELEASE_MANIFEST_PATH)
+    tracked = list(MANIFEST_TRACKED_CONFIG) + list(MANIFEST_TRACKED_SCRIPTS)
+    missing: list[str] = []
+    mismatches: list[dict] = []
+    for rel in tracked:
+        expected = _manifest_expected_sha(manifest, rel)
+        path = SKILL_ROOT / rel
+        if not expected:
+            missing.append(rel)
+            continue
+        if not path.is_file():
+            mismatches.append({"path": rel, "reason": "missing file", "expected": expected, "actual": None})
+            continue
+        actual = sha256_file(path)
+        if actual != expected:
+            mismatches.append({"path": rel, "reason": "sha mismatch", "expected": expected, "actual": actual})
+    if missing or mismatches:
+        raise ReleaseIntegrityError(
+            "release integrity mismatch",
+            {"mode": runtime_mode, "missing_manifest_entries": missing, "mismatches": mismatches},
+        )
+    summary = {
+        "schema": "journal_style_release_integrity_v1",
+        "mode": runtime_mode,
+        "manifest": str(RELEASE_MANIFEST_PATH),
+        "manifest_release_id": manifest.get("release_id"),
+        "manifest_version": manifest.get("version"),
+        "manifest_generated_from_commit": manifest.get("manifest_generated_from_commit"),
+        "current_git_head": git_head() if runtime_mode == "git" else None,
+        "tracked_count": len(tracked),
+        "matched": True,
+        "verified_at": now_iso(),
+        "_rule": "config/script bytes must match config/release-manifest.json before any runner/gate/resume logic executes.",
+    }
+    return summary
+
+
+def integrity_failure_payload(exc: ReleaseIntegrityError, entrypoint: str, task_dir: Path | None = None) -> dict:
+    return {
+        "schema": "journal_style_integrity_failure_v1",
+        "entrypoint": entrypoint,
+        "task_dir": str(task_dir) if task_dir else None,
+        "reason": exc.reason,
+        "details": exc.details,
+        "created_at": now_iso(),
+        "blocked": True,
+        "_rule": "Skill config/scripts are immutable at execution time; task-local adaptation must use task-adapter-manifest.json.",
+    }
+
+
+def record_integrity_failure(task_dir: Path | None, entrypoint: str, exc: ReleaseIntegrityError) -> Path | None:
+    if task_dir is None:
+        return None
+    task_dir = Path(task_dir)
+    payload = integrity_failure_payload(exc, entrypoint, task_dir)
+    out_dir = task_dir / "06-gates" / "h08"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"integrity-failure-{entrypoint}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        state = load_state(task_dir)
+        state.setdefault("integrity_failures", [])
+        state["integrity_failures"].append(payload)
+        state["blocked"] = True
+        state["blocked_reason"] = exc.reason
+        write_state(task_dir, state)
+        return out_path
+    except Exception:
+        return None
+
+
 def load_state(task_dir: Path) -> dict:
     state_path = Path(task_dir) / AUTHORITATIVE_STATE_FILE
     if not state_path.is_file():
@@ -113,22 +266,36 @@ GATE_ID_MAP = {
 }
 
 
-def resolve_gate_input(task_dir, step):
+def _safe_task_path(task_dir: Path, rel: str) -> Path:
+    base = Path(task_dir).resolve()
+    path = (base / rel).resolve()
+    if path != base and base not in path.parents:
+        raise ValueError(f"task-local path escapes task_dir: {rel}")
+    return path
+
+
+def resolve_gate_input(task_dir, step, overrides=None):
     """Resolve the concrete artifact a step's gate must judge.
 
-    Priority: explicit step['gate_input'] -> first produced .json/.jsonl ->
-    first required input. Returns a Path or None.
+    Priority: validated task-local override -> explicit step['gate_input'] ->
+    first produced .json/.jsonl -> first required input. Returns a Path or None.
     """
     task_dir = Path(task_dir)
+    step_id = step.get("id")
+    if overrides and step_id in overrides:
+        override = overrides[step_id]
+        rel = override.get("task_local_path") or override.get("input_path")
+        if rel:
+            return _safe_task_path(task_dir, rel)
     gi = step.get("gate_input")
     if gi:
-        return task_dir / gi
+        return _safe_task_path(task_dir, gi)
     for rel in step.get("produces", []):
         if rel.endswith(".json") or rel.endswith(".jsonl"):
-            return task_dir / rel
+            return _safe_task_path(task_dir, rel)
     for rel in step.get("requires_inputs", []):
         if rel.endswith(".json") or rel.endswith(".jsonl"):
-            return task_dir / rel
+            return _safe_task_path(task_dir, rel)
     return None
 
 

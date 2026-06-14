@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -316,6 +317,189 @@ def fx_dimension_below_threshold(tmp: Path):
            v.get("verdict") == "DEGRADED" and bool(v.get("warnings")), str(v.get("warnings"))[:80])
 
 
+# ---------------------------------------------------------------------------
+# Immutability hotfix fixtures (0.1.9): release integrity + task-local override.
+# Drift tests run against an ISOLATED copy of the skill so the real repo is
+# never mutated. The copy gets its own release-manifest built over its bytes;
+# we then mutate a tracked file in the copy and assert entrypoints fail closed.
+# ---------------------------------------------------------------------------
+
+TRACKED_CONFIG_REL = "config/workflow-states.json"
+TRACKED_SCRIPT_REL = "scripts/gate_runner.py"
+
+
+def _clone_skill(tmp: Path, name: str) -> Path:
+    dst = tmp / name
+    shutil.copytree(SKILL, dst, ignore=shutil.ignore_patterns(".git", ".codegraph", "__pycache__"))
+    return dst
+
+
+def _build_manifest(skill_copy: Path):
+    return run([str(skill_copy / "scripts" / "build_release_manifest.py")])
+
+
+def _runner(skill_copy: Path, task: Path):
+    return run([str(skill_copy / "scripts" / "journal_style_runner.py"), "--task-dir", str(task)])
+
+
+def _is_blocked(proc) -> bool:
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return False
+    return proc.returncode == 3 and bool(out.get("blocked"))
+
+
+def fx_integrity_clean_runs(tmp: Path):
+    """Baseline: a clean clone with a matching manifest runs (not integrity-blocked)."""
+    skill = _clone_skill(tmp, "clean"); _build_manifest(skill)
+    task = tmp / "clean_task"; task.mkdir()
+    proc = _runner(skill, task)
+    # fresh task: runner advances to step00, NOT blocked by integrity (rc != 3)
+    record("integrity_clean_clone_runs", proc.returncode == 0, proc.stdout[:80] + proc.stderr[:80])
+
+
+def fx_integrity_dirty_config_must_fail(tmp: Path):
+    """Reproduce this round's accident: edit workflow-states.json after release."""
+    skill = _clone_skill(tmp, "dirtycfg"); _build_manifest(skill)
+    cfg = skill / TRACKED_CONFIG_REL
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["steps"][6]["gate_input"] = "025-rag-import/zotero-pdf-rag-handoff-input.json"  # the real drift
+    cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    task = tmp / "dirtycfg_task"; task.mkdir()
+    record("integrity_dirty_config_must_fail (MUST-FAIL guard)", _is_blocked(_runner(skill, task)))
+
+
+def fx_integrity_dirty_script_must_fail(tmp: Path):
+    """Edit a tracked state-machine script after release -> fail closed."""
+    skill = _clone_skill(tmp, "dirtyscript"); _build_manifest(skill)
+    scr = skill / TRACKED_SCRIPT_REL
+    scr.write_text(scr.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+    task = tmp / "dirtyscript_task"; task.mkdir()
+    record("integrity_dirty_script_must_fail (MUST-FAIL guard)", _is_blocked(_runner(skill, task)))
+
+
+def fx_integrity_missing_manifest_must_fail(tmp: Path):
+    """No release-manifest.json at all -> fail closed (never default-allow)."""
+    skill = _clone_skill(tmp, "nomani")  # do NOT build manifest
+    (skill / "config" / "release-manifest.json").unlink(missing_ok=True)
+    task = tmp / "nomani_task"; task.mkdir()
+    record("integrity_missing_manifest_must_fail (MUST-FAIL guard)", _is_blocked(_runner(skill, task)))
+
+
+def fx_integrity_gate_side_door_must_fail(tmp: Path):
+    """The run_stage_gates side door must also fail closed under drift."""
+    skill = _clone_skill(tmp, "sidedoor"); _build_manifest(skill)
+    scr = skill / TRACKED_SCRIPT_REL
+    scr.write_text(scr.read_text(encoding="utf-8") + "\n# tampered\n", encoding="utf-8")
+    rep = tmp / "dim.json"
+    write(rep, {"dimensions": [{"dimension": "title_style", "counts": {"min_titles": 80}}]})
+    proc = run([str(skill / "scripts" / "run_stage_gates.py"), "--gate", "dimension-evidence", "--input", str(rep)])
+    record("integrity_run_stage_gates_side_door_blocked (MUST-FAIL guard)", proc.returncode == 3)
+
+
+def _adapter_task(tmp: Path, name: str, sha_ok: bool = True, registered: bool = True):
+    """Build a task with step06 produced artifact relocated to a non-default path,
+    a Step0 manifest registering it, and a task-adapter-manifest pointing to it."""
+    task = tmp / name; task.mkdir()
+    # custom location for the handoff artifact (the real-world reason for override)
+    rel = "025-rag-import/zotero-pdf-rag-handoff-input.json"
+    art = task / rel
+    write(art, {"status": "success", "item_count": 10,
+                "item_receipts": [{"title": f"t{i}"} for i in range(10)],
+                "pdf_count": 8, "rag_doc_count": 8,
+                "recall_test": {"sampled": 3, "passed": 3}})
+    digest = sha256_file(art)
+    # Step0 manifest registering the asset under its real sha
+    write(task / "00-intake" / "material-intake-manifest.json", {
+        "schema": "journal_style_material_intake_manifest_v1",
+        "registered_assets": {
+            "zotero_pdf_rag_handoff_custom": {"rel_path": rel, "sha256": digest if registered else "deadbeef"},
+        },
+    })
+    write(task / "00-intake" / "task-adapter-manifest.json", {
+        "schema": "journal_style_task_adapter_v1",
+        "task_id": name,
+        "overrides": [{
+            "step": "step06_zotero_pdf_rag",
+            "field": "gate_input",
+            "task_local_path": rel,
+            "input_sha256": digest if sha_ok else "deadbeef",
+            "registered_in_step0": True,
+            "reason": "existing task stores handoff at a non-default path",
+        }],
+    })
+    return task
+
+
+def fx_adapter_allowed_path_ok(tmp: Path):
+    """Legal override: remap step06 gate_input to a registered, sha-bound path."""
+    from task_adapter import load_task_adapter, validate_task_adapter
+    task = _adapter_task(tmp, "adapter_ok")
+    try:
+        overrides = validate_task_adapter(load_task_adapter(task), task)
+        ok = "step06_zotero_pdf_rag" in overrides
+    except Exception as exc:  # noqa
+        ok = False; overrides = str(exc)
+    record("adapter_allowed_path_ok", ok, str(overrides)[:80])
+
+
+def fx_adapter_illegal_field_must_fail(tmp: Path):
+    """Override that tries to change a contract field (next) must be rejected."""
+    from task_adapter import TaskAdapterError, load_task_adapter, validate_task_adapter
+    task = _adapter_task(tmp, "adapter_illegal")
+    mani = task / "00-intake" / "task-adapter-manifest.json"
+    data = json.loads(mani.read_text(encoding="utf-8"))
+    data["overrides"][0]["next"] = "step09_fit"  # contract field
+    mani.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    try:
+        validate_task_adapter(load_task_adapter(task), task)
+        rejected = False
+    except TaskAdapterError:
+        rejected = True
+    record("adapter_illegal_field_must_fail (MUST-FAIL guard)", rejected)
+
+
+def fx_adapter_unregistered_must_fail(tmp: Path):
+    """Override sha not matching the Step0-registered sha must be rejected."""
+    from task_adapter import TaskAdapterError, load_task_adapter, validate_task_adapter
+    task = _adapter_task(tmp, "adapter_unreg", registered=False)
+    try:
+        validate_task_adapter(load_task_adapter(task), task)
+        rejected = False
+    except TaskAdapterError:
+        rejected = True
+    record("adapter_unregistered_must_fail (MUST-FAIL guard)", rejected)
+
+
+def fx_adapter_sha_mismatch_must_fail(tmp: Path):
+    """Override input_sha256 not matching the live artifact must be rejected."""
+    from task_adapter import TaskAdapterError, load_task_adapter, validate_task_adapter
+    task = _adapter_task(tmp, "adapter_sha", sha_ok=False)
+    try:
+        validate_task_adapter(load_task_adapter(task), task)
+        rejected = False
+    except TaskAdapterError:
+        rejected = True
+    record("adapter_sha_mismatch_must_fail (MUST-FAIL guard)", rejected)
+
+
+def fx_adapter_non_whitelisted_step_must_fail(tmp: Path):
+    """Override for a non-whitelisted step (step10_handoff) must be rejected."""
+    from task_adapter import TaskAdapterError, load_task_adapter, validate_task_adapter
+    task = _adapter_task(tmp, "adapter_wl")
+    mani = task / "00-intake" / "task-adapter-manifest.json"
+    data = json.loads(mani.read_text(encoding="utf-8"))
+    data["overrides"][0]["step"] = "step10_handoff"
+    mani.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    try:
+        validate_task_adapter(load_task_adapter(task), task)
+        rejected = False
+    except TaskAdapterError:
+        rejected = True
+    record("adapter_non_whitelisted_step_must_fail (MUST-FAIL guard)", rejected)
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
@@ -323,7 +507,13 @@ def main() -> int:
                    fx_runner_stops, fx_material_intake_unblocks, fx_p4_untraceable,
                    fx_p4_missing_ledger_no_go, fx_p5_credential, fx_p5_public_ok,
                    fx_p6_gateless_never_skip, fx_p6_gatefail_rejected, fx_p6_gatepass_accepted,
-                   fx_handoff_ratio, fx_dimension_below_threshold]:
+                   fx_handoff_ratio, fx_dimension_below_threshold,
+                   fx_integrity_clean_runs, fx_integrity_dirty_config_must_fail,
+                   fx_integrity_dirty_script_must_fail, fx_integrity_missing_manifest_must_fail,
+                   fx_integrity_gate_side_door_must_fail,
+                   fx_adapter_allowed_path_ok, fx_adapter_illegal_field_must_fail,
+                   fx_adapter_unregistered_must_fail, fx_adapter_sha_mismatch_must_fail,
+                   fx_adapter_non_whitelisted_step_must_fail]:
             try:
                 fx(tmp)
             except Exception as exc:  # a fixture crash is a failure

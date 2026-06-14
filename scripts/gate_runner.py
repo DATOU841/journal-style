@@ -15,7 +15,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-from journal_style_runtime import now_iso, sha256_artifact, GENERATOR_MARKER
+from journal_style_runtime import (
+    GENERATOR_MARKER,
+    ReleaseIntegrityError,
+    assert_release_integrity,
+    integrity_failure_payload,
+    now_iso,
+    record_integrity_failure,
+    sha256_artifact,
+)
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 RUN_STAGE_GATES = SCRIPTS_DIR / "run_stage_gates.py"
@@ -32,6 +40,17 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    # Fail-closed release integrity guard: a gate verdict produced by a drifted
+    # gate_runner / run_stage_gates must never be trusted. Refuse to emit one.
+    try:
+        assert_release_integrity()
+    except ReleaseIntegrityError as exc:
+        record_integrity_failure(args.task_dir, "gate_runner", exc)
+        print(json.dumps(integrity_failure_payload(exc, "gate_runner", args.task_dir),
+                         ensure_ascii=False, indent=2))
+        return 3
+
     input_path = args.input.expanduser().resolve()
     if not input_path.exists():
         verdict = {

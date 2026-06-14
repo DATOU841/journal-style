@@ -1,6 +1,6 @@
 <!-- content_source: wenheng_claude -->
 <!-- skill_name: journal-style -->
-<!-- version: 0.1.8 -->
+<!-- version: 0.1.9 -->
 
 # journal-style
 
@@ -36,4 +36,4 @@ python3 -m py_compile scripts/*.py
 ## 发布纪律
 
 - 版本号遵循语义化版本控制
-- 当前版本：0.1.8
+- 当前版本：0.1.9

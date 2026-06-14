@@ -28,19 +28,29 @@ from pathlib import Path
 
 from journal_style_runtime import (
     GATE_ID_MAP,
+    ReleaseIntegrityError,
+    assert_release_integrity,
+    integrity_failure_payload,
     load_state,
     load_workflow_states,
     now_iso,
+    record_integrity_failure,
     resolve_gate_input,
     write_state,
     write_state_mirrors,
+)
+from task_adapter import (
+    TaskAdapterError,
+    adapter_failure_payload,
+    load_task_adapter,
+    validate_task_adapter,
 )
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 GATE_RUNNER = SCRIPTS_DIR / "gate_runner.py"
 
 
-def rerun_gate(task_dir: Path, step: dict) -> tuple[bool, str]:
+def rerun_gate(task_dir: Path, step: dict, overrides=None) -> tuple[bool, str]:
     """Re-run the step's governing gate over the LIVE artifact, right now.
 
     This is the moat: we never trust a stored verdict's marker/sha alone. We
@@ -54,7 +64,7 @@ def rerun_gate(task_dir: Path, step: dict) -> tuple[bool, str]:
     gate_id = GATE_ID_MAP.get(gate)
     if not gate_id:
         return False, f"unknown gate '{gate}' (no GATE_ID_MAP entry)"
-    gate_input = resolve_gate_input(task_dir, step)
+    gate_input = resolve_gate_input(task_dir, step, overrides)
     if gate_input is None:
         return False, f"cannot resolve gate input for step '{step.get('id')}'"
     if not gate_input.exists():
@@ -75,23 +85,23 @@ def rerun_gate(task_dir: Path, step: dict) -> tuple[bool, str]:
     return False, f"gate '{gate}' verdict {v}: {'; '.join(verdict.get('problems', []))[:200]}"
 
 
-def step_satisfied(task_dir: Path, step: dict) -> tuple[bool, str]:
+def step_satisfied(task_dir: Path, step: dict, overrides=None) -> tuple[bool, str]:
     # produced artifacts must exist on disk
     for rel in step.get("produces", []):
         if not (task_dir / rel).exists():
             return False, f"missing produced artifact: {rel}"
     # governing gate (if any) must pass when re-run NOW over the live artifact
-    ok, detail = rerun_gate(task_dir, step)
+    ok, detail = rerun_gate(task_dir, step, overrides)
     if not ok:
         return False, detail
     return True, "satisfied"
 
 
-def compute_position(task_dir: Path, workflow: dict) -> dict:
+def compute_position(task_dir: Path, workflow: dict, overrides=None) -> dict:
     steps = workflow["steps"]
     position = {"current_step": None, "next_step": None, "completed": [], "blocked_reason": None}
     for step in steps:
-        ok, detail = step_satisfied(task_dir, step)
+        ok, detail = step_satisfied(task_dir, step, overrides)
         if ok:
             position["completed"].append(step["id"])
             continue
@@ -112,8 +122,29 @@ def main() -> int:
     args = parser.parse_args()
 
     task_dir = args.task_dir.expanduser().resolve()
+
+    # Fail-closed release integrity guard: refuse to run if published config or
+    # state-machine scripts drift from config/release-manifest.json. This is the
+    # core immutability fix: a task window can no longer edit workflow-states.json
+    # or gate code to force progress.
+    try:
+        integrity = assert_release_integrity()
+    except ReleaseIntegrityError as exc:
+        record_integrity_failure(task_dir, "runner", exc)
+        print(json.dumps(integrity_failure_payload(exc, "runner", task_dir),
+                         ensure_ascii=False, indent=2))
+        return 3
+
+    # Controlled task-local override (gate_input path only, whitelisted steps).
+    try:
+        overrides = validate_task_adapter(load_task_adapter(task_dir), task_dir)
+    except TaskAdapterError as exc:
+        payload = adapter_failure_payload(exc, task_dir)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 4
+
     workflow = load_workflow_states()
-    position = compute_position(task_dir, workflow)
+    position = compute_position(task_dir, workflow, overrides)
 
     state = load_state(task_dir)
     state.update({
@@ -122,6 +153,8 @@ def main() -> int:
         "authoritative": True,
         "single_state_source": "current-run-state.json",
         "demoted_mirrors": ["task-state.json", "wenheng-center-status.json"],
+        "release_integrity": integrity,
+        "applied_overrides": list(overrides.values()),
         "position": position,
         "current_step": position["current_step"],
         "next_step": position["next_step"],
@@ -137,6 +170,7 @@ def main() -> int:
         "next_step": position["next_step"],
         "completed_count": len(position["completed"]),
         "blocked_reason": position["blocked_reason"],
+        "applied_overrides": [o["step"] for o in overrides.values()],
     }, ensure_ascii=False, indent=2))
     return 0
 

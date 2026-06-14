@@ -447,6 +447,27 @@ def main() -> int:
     parser.add_argument("--output", default="")
     args = parser.parse_args()
 
+    # Fail-closed release integrity guard: close the side door of running gate
+    # logic directly from a drifted run_stage_gates.py / config. Mirrors the
+    # guard in gate_runner so neither path can be bypassed.
+    try:
+        from journal_style_runtime import (
+            ReleaseIntegrityError,
+            assert_release_integrity,
+            integrity_failure_payload,
+        )
+        assert_release_integrity()
+    except ReleaseIntegrityError as exc:
+        print(json.dumps(integrity_failure_payload(exc, "run_stage_gates"),
+                         ensure_ascii=False, indent=2))
+        return 3
+    except ImportError:
+        # runtime helper unavailable: cannot prove integrity -> fail closed.
+        print(json.dumps({"verdict": "NO_GO",
+                          "problems": ["release integrity helper unavailable"]},
+                         ensure_ascii=False))
+        return 3
+
     input_path = Path(args.input).expanduser().resolve()
     handlers = {
         "completion-label": gate_completion_label,

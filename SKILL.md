@@ -94,6 +94,9 @@ journal-style-task/
 - 重跑/续跑用 `scripts/journal_style_resume.py --task-dir <task> --resume-manifest <manifest>`：声明 `satisfied_by_prior_run` 的步骤只有在「有 gate 且现场重跑通过」时才跳过；无 gate 步骤永不跳过，必须逐步执行。
 - 交接前用 `scripts/validate_source_profiles.py`（P4 provenance 反查 Step0 清单）和 `scripts/validate_field_policy.py`（P5 双向字段策略：仅凭证阻断，公开元数据不拦截）做契约校验。
 - 回归用 `tests/run_state_machine_fixtures.py`，复现本轮漂移事故并断言被拦截。
+- 发布态完整性闸门（0.1.9 新增）：`config/release-manifest.json` 记录全部 `config/` 与状态机脚本的 sha256。`journal_style_runner.py`、`gate_runner.py`、`journal_style_resume.py`、`run_stage_gates.py` 在执行任何业务逻辑前先调用 `assert_release_integrity()`，发现发布后 config 或脚本字节漂移即 fail-closed（退出码 3，不推进、不写 completed），并把失败写入 `06-gates/h08/`。执行窗口不得把任务级适配写进 skill repo；如需适配路径，必须走 task-local adapter。该闸门是树内字节漂移检测；彻底防重签需要发布流程配合 `--require-clean` 和外部发布保护。
+- 任务级路径适配只能走受控通道：把 gate 输入放在非默认路径时，用 `00-intake/task-adapter-manifest.json` 声明 override。override 只能改 `gate_input` 指向的 task-local 路径，且必须在 Step0 清单注册、sha 绑定、step 在白名单内（仅 `step06_zotero_pdf_rag`、`step08a_metadata_layer`）；任何试图改 `gate`/`next`/`threshold`/`resume_skippable` 的 override 一律拒绝。详见 `references/task-adapter-protocol.md`。
+- 发布期由 `scripts/build_release_manifest.py --require-clean` 生成 manifest：该选项要求 manifest 追踪的 config/scripts 相对 HEAD 干净，避免未提交改动被直接重签；`--check` 用于发布前校验 manifest 是否与当前字节一致。
 
 ### 1. 初始化任务
 
