@@ -281,3 +281,25 @@
 ### Notes
 - `/Users/a13497/.codex/skills/journal-style/progress.md`: records the final release-prep verification and release boundary.
 - Rollback: remove this progress entry if this release-prep record should be withdrawn; no production code was changed by this closure entry.
+
+## 2026-06-24 - Task: journal-style 0.1.10 release publication
+### What was done
+- Published the reviewed Phase 2 downstream-consumable journal constraints work as `0.1.10`.
+- Committed the reviewed code, schema, protocol, fixture, handoff, progress, and version metadata changes at `bf479077c7da770f48bcb856ffef723820aa54ad`.
+- Re-signed `config/release-manifest.json` from a clean reviewed HEAD and committed it at `8c8407d7d624c1afbb2ae40df81f6c137be5dbd1`.
+- Created and pushed annotated tag `v0.1.10`, pointing to `8c8407d7d624c1afbb2ae40df81f6c137be5dbd1`.
+- Pushed `main` and `v0.1.10` to `origin`; no runtime sync, server connection, CNKI/WoS/Zotero/PDF/MinerU/RAG, or real Wenheng task was run.
+### Testing
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 28/28 fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 -m py_compile scripts/*.py tests/*.py`: passed.
+- JSON validation for `config/*.json` and `templates/*.json`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+- Checked `/Users/a13497/.codex/skills/journal-style` for `__pycache__` / `.pyc` residue after validation cleanup: none found.
+### Notes
+- `/Users/a13497/.codex/skills/journal-style/progress.md`: appended this post-tag release publication record only; the `v0.1.10` tag remains on the release manifest commit and is not moved.
+- Rollback: revert the post-tag progress-record commit if only this audit note should be withdrawn. To roll back the published release itself, do not move `v0.1.10`; publish a corrective commit and follow-up version/tag or explicitly delete the remote tag under release-owner approval.
