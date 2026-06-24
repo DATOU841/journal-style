@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal-style polish consumption pack",
+  "type": "object",
+  "required": [
+    "schema",
+    "target_journal",
+    "source_evidence_scope",
+    "metadata_only",
+    "sample_count",
+    "confidence",
+    "conclusion_strength",
+    "constraints",
+    "gap_checklist",
+    "evidence_index"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_style_profile_v1" },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "source_evidence_scope": {
+      "enum": ["metadata_only", "rag_fragment", "mu_fulltext_core_pack"]
+    },
+    "metadata_only": { "type": "boolean" },
+    "sample_count": { "type": "integer", "minimum": 0 },
+    "confidence": { "enum": ["low", "medium", "high"] },
+    "conclusion_strength": { "enum": ["sample_observation", "preliminary", "stable"] },
+    "degrade_label": { "type": "string" },
+    "constraints": {
+      "type": "object",
+      "required": [
+        "length_band",
+        "paragraph_band",
+        "section_hierarchy",
+        "abstract_keywords",
+        "notes_convention",
+        "reference_constraints",
+        "title_style",
+        "argument_rhythm"
+      ],
+      "additionalProperties": true
+    },
+    "gap_checklist": { "type": "array" },
+    "evidence_index": { "type": "array" }
+  }
+}

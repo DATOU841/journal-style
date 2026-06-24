@@ -78,6 +78,263 @@ def make_core_ledger(n_selected=30, n_total=100):
     return {"screened_count": n_total, "selected": sel, "rejected": rej}
 
 
+def text_sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def make_mu_article(index: int) -> dict:
+    fulltext = (
+        f"题名：期刊体例样本{index}\n"
+        "摘要：本文围绕材料、方法与论证结构展开分析。\n"
+        "一、问题提出\n"
+        "本文从研究史和材料缺口进入问题。\n"
+        "二、材料与方法\n"
+        "文章采用文献考辨、案例比较和图像分析方法。\n"
+        "三、结论\n"
+        "文章回到问题意识并收束判断。\n"
+        "注释：[1] 出处说明。\n"
+        "参考文献：[1] 示例文献。\n"
+    )
+    return {
+        "article_id": f"A{index:02d}",
+        "title": f"期刊体例样本{index}",
+        "authors": [f"作者{index}"],
+        "year": 2020 + index % 5,
+        "column": "专题研究",
+        "mu_fulltext": fulltext,
+        "fulltext_sha256": text_sha(fulltext),
+        "core_library_joined": True,
+        "abstract": "本文围绕材料、方法与论证结构展开分析。",
+        "keywords": ["材料", "方法", "论证"],
+        "section_tree": [
+            {"level": 1, "title": "问题提出", "order": 1},
+            {"level": 1, "title": "材料与方法", "order": 2},
+            {"level": 1, "title": "结论", "order": 3},
+        ],
+        "paragraph_sequence": [
+            {"section_ref": "1", "order": 1, "char_count": 80},
+            {"section_ref": "2", "order": 2, "char_count": 90},
+            {"section_ref": "3", "order": 3, "char_count": 70},
+        ],
+        "notes": {"type": "footnote", "count": 1},
+        "reference_list": [
+            {"raw": "[1] 示例文献。", "year": 2020, "lang": "zh", "is_self_journal": False},
+        ],
+        "char_count_total": len(fulltext),
+        "provenance": {
+            "source_ledger": "06-gates/zotero-pdf-rag-handoff.json",
+            "extraction_method": "MinerU",
+            "mu_version": "mineru-fixture-1",
+        },
+    }
+
+
+def make_mu_pack(count: int = 20) -> dict:
+    return {
+        "schema": "journal_style_mu_fulltext_core_pack_v1",
+        "target_journal": "测试刊",
+        "source_skill": "检索入库",
+        "mu_processing_required": True,
+        "mu_processor": "MinerU",
+        "ordinary_rag_is_not_substitute": True,
+        "articles": [make_mu_article(i) for i in range(1, count + 1)],
+    }
+
+
+def make_profile(article: dict) -> dict:
+    dims = {
+        "title_structure": {"pattern": "对象+问题"},
+        "abstract_profile": {"char_count": len(article["abstract"])},
+        "keywords_profile": {"count": len(article["keywords"])},
+        "length_band": {"char_count_total": article["char_count_total"]},
+        "paragraph_stats": {"paragraph_count": len(article["paragraph_sequence"])},
+        "section_hierarchy": {"max_level": 1},
+        "intro_pattern": {"type": "问题切入"},
+        "material_types": ["文献", "图像"],
+        "method_types": ["考辨", "比较"],
+        "argument_rhythm": {"type": "问题-材料-结论"},
+        "notes_profile": article["notes"],
+        "reference_profile": {"reference_count": len(article["reference_list"])},
+        "conclusion_pattern": {"type": "回应问题"},
+    }
+    return {
+        "schema": "per_article_style_profile_v1",
+        "article_id": article["article_id"],
+        "source_article_id": article["article_id"],
+        "dimensions": dims,
+        "evidence_index": [{
+            "article_id": article["article_id"],
+            "evidence_path": f"articles/{article['article_id']}/section_tree",
+            "provenance": article["provenance"],
+        }],
+        "downstream_constraints": [{"type": "section_count", "min": 3, "max": 5}],
+    }
+
+
+def make_profile_batch(pack: dict) -> dict:
+    return {
+        "schema": "journal_style_per_article_profile_batch_v1",
+        "target_journal": pack["target_journal"],
+        "source_pack": "03-analysis/fulltext-layer/mu-fulltext-core-pack.json",
+        "ready_article_count": len(pack["articles"]),
+        "profiles": [make_profile(article) for article in pack["articles"]],
+    }
+
+
+def make_aggregation(sample_count: int = 20) -> dict:
+    evidence = [
+        {"article_id": f"A{i:02d}", "evidence_path": f"per-article/A{i:02d}.json", "provenance": {"source": "fixture"}}
+        for i in range(1, sample_count + 1)
+    ]
+    names = [
+        ("journal-style-constraints-lock", "format_convention"),
+        ("journal-format-convention-profile", "format_convention"),
+        ("journal-argument-preference-profile", "argument_style"),
+        ("journal-reference-ecology-lock", "reference_ecology"),
+        ("journal-polish-consumption-pack", "downstream_consumption"),
+    ]
+    return {
+        "schema": "journal_style_aggregation_bundle_v1",
+        "target_journal": "测试刊",
+        "sample_count": sample_count,
+        "artifacts": [
+            {
+                "name": name,
+                "dimension": dimension,
+                "sample_count": sample_count,
+                "coverage": 1.0,
+                "confidence": "medium",
+                "conclusion_strength": "stable",
+                "degrade_label": "",
+                "evidence_index": evidence,
+            }
+            for name, dimension in names
+        ],
+    }
+
+
+def make_scoring(calibrated: bool = True) -> dict:
+    replay_count = 20 if calibrated else 5
+    replay_scores = [
+        {"article_id": f"A{i:02d}", "score": 78 + (i % 5)}
+        for i in range(1, replay_count + 1)
+    ]
+    scores = sorted(float(item["score"]) for item in replay_scores)
+    distribution = {
+        "sample_count": replay_count,
+        "min": scores[0],
+        "q1": scores[len(scores) // 4],
+        "median": scores[len(scores) // 2] if len(scores) % 2 else (scores[len(scores) // 2 - 1] + scores[len(scores) // 2]) / 2,
+        "q3": scores[(len(scores) * 3) // 4],
+        "max": scores[-1],
+        "source": "replay_scores",
+    }
+    return {
+        "schema": "journal_fit_scoring_model_v1",
+        "target_journal": "测试刊",
+        "model_name": "journal_fit_scoring_model_v1",
+        "not_editor_simulation": True,
+        "no_acceptance_prediction": True,
+        "calibration": {
+            "status": "calibrated" if calibrated else "not_started",
+            "rounds_completed": 1 if calibrated else 0,
+            "replay_sample_count": replay_count,
+            "source": "per_article_profile_replay",
+        },
+        "dimensions": [
+            {"dimension": "format_convention", "weight": 15, "rationale": "由体例约束锁校准"},
+            {"dimension": "reference_ecology", "weight": 15, "rationale": "由参考文献生态锁校准"},
+        ],
+        "scoring_constraints": {
+            "source": "journal_style_aggregation_bundle",
+            "section_hierarchy": {"section_min": 3, "section_max": 5, "median": 3},
+            "abstract_keywords": {"keyword_min": 3, "keyword_max": 5, "median": 3},
+            "reference_constraints": {"reference_min": 1, "reference_max": 1, "median": 1},
+        },
+        "replay_scores": replay_scores,
+        "published_score_distribution": distribution,
+    }
+
+
+def make_consumption_pack(sample_count: int = 20) -> dict:
+    return {
+        "schema": "journal_style_profile_v1",
+        "target_journal": "测试刊",
+        "source_evidence_scope": "mu_fulltext_core_pack",
+        "metadata_only": False,
+        "sample_count": sample_count,
+        "constraints": {"section_hierarchy": {"section_min": 3, "section_max": 5}},
+        "gap_checklist": [],
+        "evidence_index": [{
+            "article_id": "A01",
+            "evidence_path": "per-article/A01.json",
+            "provenance": {"source": "fixture"},
+        }],
+    }
+
+
+def make_metadata_ready_task(tmp: Path, name: str, mode: str = "standard") -> Path:
+    task = tmp / name
+    task.mkdir()
+    write(task / "00-intake" / "material-intake-manifest.json", {
+        "schema": "journal_style_material_intake_manifest_v1",
+        "registered_assets": {"title_intake_csv": {"rel_path": "01-title-intake/journal-full-title-list.csv", "sha256": "fixture"}}
+    })
+    write(task / "00-intake" / "task-init.json", {"schema": "journal_style_task_init_v1"})
+    write(task / "current-run-state.json", {"run_mode": mode, "requested_mode": mode})
+    write(task / "00-official" / "journal-identity-confirmation.md", "identity confirmed\n")
+    write(task / "00-official" / "journal-official-and-web-evidence.md", "official evidence\n")
+    write(task / "01-title-intake" / "journal-full-title-list.xlsx", "fixture\n")
+    write(task / "01-title-intake" / "journal-title-ingestion-log.md", "log\n")
+    write(task / "015-title-screening" / "title-screening-ledger.json", {"kept": []})
+    write(task / "06-gates" / "title-screening-gate.json", {"verdict": "PASS"})
+    write(task / "02-topic-library" / "topic-special-library-plan.md", "plan\n")
+    write(task / "02-topic-library" / "topic-related-title-list.xlsx", "fixture\n")
+    write(task / "06-gates" / "zotero-pdf-rag-handoff.json", {
+        "status": "success", "task_collection_binding": "live", "item_count": 10,
+        "item_receipts": [{"title": f"t{i}"} for i in range(10)],
+        "pdf_count": 6, "rag_doc_count": 5, "recall_test": {"sampled": 2, "passed": 2}
+    })
+    write(task / "02b-core-library" / "core-library-ledger.json", make_core_ledger())
+    write(task / "02b-core-library" / "core-library-rejected.json", {"rejected": []})
+    rows = []
+    for index in range(1, 4):
+        rows.append(json.dumps({"title": f"t{index}", "abstract": "摘要", "keywords": ["k"], "item_key": f"K{index}"}, ensure_ascii=False))
+    write(task / "03-analysis" / "metadata-layer" / "abstract-metadata-ledger.jsonl", "\n".join(rows) + "\n")
+    write(task / "05-handoff" / "wenheng-center-status.json", {
+        "schema": "journal_style_wenheng_status_v1",
+        "pipeline_status": {"metadata_analysis": "done", "fulltext_analysis": "blocked", "overall_journal_style": "blocked"},
+        "analysis_layers": {
+            "metadata_layer_status": "done",
+            "fulltext_layer_status": "blocked",
+            "completion_label": "METADATA_ONLY_NOT_FULLTEXT_READY",
+            "fulltext_evidence": {"fulltext_sample_count": 0, "rag_available_rate": 0.0, "pdf_coverage_rate": 0.0}
+        }
+    })
+    return task
+
+
+def add_fulltext_ready_artifacts(task: Path, calibrated: bool = True) -> None:
+    pack = make_mu_pack(20)
+    write(task / "03-analysis" / "fulltext-layer" / "mu-fulltext-core-pack.json", pack)
+    write(task / "03-analysis" / "fulltext-layer" / "per-article-style-profiles.json", make_profile_batch(pack))
+    write(task / "03-analysis" / "fulltext-layer" / "journal-style-aggregation-bundle.json", make_aggregation(20))
+    for rel in [
+        "journal-rag-fulltext-pattern-report.md",
+        "journal-method-material-report.md",
+        "journal-argument-style-report.md",
+        "journal-reference-ecology-report.md",
+        "journal-reference-network-report.md",
+    ]:
+        write(task / "03-analysis" / "fulltext-layer" / rel, f"{rel} fixture\n")
+    write(task / "04-fit-evaluation" / "journal-fit-scoring-model.json", make_scoring(calibrated=calibrated))
+    write(task / "04-fit-evaluation" / "submission-fit-score.md", "score fixture\n")
+    write(task / "05-handoff" / "journal-polish-consumption-pack.json", make_consumption_pack(20))
+    write(task / "05-handoff" / "handoff-to-downstream-skills.md", "handoff fixture\n")
+    write(task / "04-fit-evaluation" / "topic-suggestion-report.md", "topic fixture\n")
+    write(task / "04-fit-evaluation" / "target-journal-decision.md", "decision fixture\n")
+
+
 CORE_STEP = {
     "id": "step07_core_library",
     "produces": ["02b-core-library/core-library-ledger.json"],
@@ -145,6 +402,72 @@ def fx_runner_stops(tmp: Path):
         out = {}
     record("runner_stops_at_step00", out.get("current_step") == "step00_material_intake",
            out.get("blocked_reason", ""))
+
+
+def fx_metadata_mode_reaches_metadata_terminal(tmp: Path):
+    """Metadata-only modes must not be blocked by the MinerU/mu fulltext gate."""
+    task = make_metadata_ready_task(tmp, "metadata_ok", mode="standard")
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    record("metadata_mode_reaches_metadata_terminal",
+           out.get("current_step") == "completed" and "step07b_mu_fulltext_pack" in out.get("skipped_by_mode", []),
+           proc.stdout[:120] + proc.stderr[:120])
+
+
+def fx_full_mode_requires_mu_pack(tmp: Path):
+    """Full mode must still stop at the MinerU/mu fulltext gate when the pack is missing."""
+    task = make_metadata_ready_task(tmp, "full_needs_mu", mode="full")
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    record("full_mode_requires_mu_pack",
+           out.get("current_step") == "step07b_mu_fulltext_pack" and "mu-fulltext-core-pack.json" in out.get("blocked_reason", ""),
+           proc.stdout[:120] + proc.stderr[:120])
+
+
+def fx_full_mode_reaches_handoff_terminal(tmp: Path):
+    """A fully satisfied full-mode chain must traverse mu -> per-article -> aggregation -> calibration -> fit -> handoff."""
+    task = make_metadata_ready_task(tmp, "full_ok", mode="full")
+    add_fulltext_ready_artifacts(task, calibrated=True)
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    state = json.loads((task / "current-run-state.json").read_text(encoding="utf-8"))
+    completed = (state.get("position") or {}).get("completed") or []
+    required = {
+        "step07b_mu_fulltext_pack",
+        "step08b1_per_article_profile",
+        "step08b_fulltext_layer",
+        "step09b_scoring_calibration",
+        "step09_fit",
+        "step10_handoff",
+    }
+    record("full_mode_reaches_handoff_terminal",
+           out.get("current_step") == "completed" and required.issubset(set(completed)),
+           proc.stdout[:120] + proc.stderr[:120])
+
+
+def fx_uncalibrated_model_blocks_before_fit(tmp: Path):
+    """A draft score file cannot make step09_fit reachable when the model is uncalibrated."""
+    task = make_metadata_ready_task(tmp, "full_uncalibrated", mode="full")
+    add_fulltext_ready_artifacts(task, calibrated=False)
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    state = json.loads((task / "current-run-state.json").read_text(encoding="utf-8"))
+    completed = (state.get("position") or {}).get("completed") or []
+    record("uncalibrated_model_blocks_before_fit",
+           out.get("current_step") == "step09b_scoring_calibration" and "step09_fit" not in completed,
+           proc.stdout[:120] + proc.stderr[:120])
 
 
 def fx_material_intake_unblocks(tmp: Path):
@@ -504,7 +827,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         for fx in [fx_forged_gate_over_bad_artifact, fx_marker_copy_forgery, fx_tampered_artifact,
-                   fx_runner_stops, fx_material_intake_unblocks, fx_p4_untraceable,
+                   fx_runner_stops, fx_metadata_mode_reaches_metadata_terminal, fx_full_mode_requires_mu_pack,
+                   fx_full_mode_reaches_handoff_terminal, fx_uncalibrated_model_blocks_before_fit,
+                   fx_material_intake_unblocks, fx_p4_untraceable,
                    fx_p4_missing_ledger_no_go, fx_p5_credential, fx_p5_public_ok,
                    fx_p6_gateless_never_skip, fx_p6_gatefail_rejected, fx_p6_gatepass_accepted,
                    fx_handoff_ratio, fx_dimension_below_threshold,

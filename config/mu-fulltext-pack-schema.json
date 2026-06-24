@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal-style MinerU/mu fulltext core pack",
+  "type": "object",
+  "required": ["schema", "target_journal", "source_skill", "mu_processing_required", "articles"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_style_mu_fulltext_core_pack_v1" },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "source_skill": { "type": "string", "minLength": 1 },
+    "mu_processing_required": { "const": true },
+    "mu_processor": { "enum": ["MinerU", "mineru", "mu"] },
+    "ordinary_rag_is_not_substitute": { "type": "boolean" },
+    "articles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "article_id",
+          "title",
+          "authors",
+          "year",
+          "column",
+          "mu_fulltext",
+          "fulltext_sha256",
+          "provenance",
+          "core_library_joined",
+          "section_tree",
+          "paragraph_sequence",
+          "reference_list"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "article_id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "authors": { "type": "array", "items": { "type": "string" } },
+          "year": { "type": ["integer", "string"] },
+          "column": { "type": "string" },
+          "mu_fulltext": { "type": "string", "minLength": 1 },
+          "fulltext_sha256": { "type": "string", "minLength": 64 },
+          "core_library_joined": { "type": "boolean" },
+          "abstract": { "type": "string" },
+          "keywords": { "type": "array", "items": { "type": "string" } },
+          "section_tree": { "type": "array" },
+          "paragraph_sequence": { "type": "array" },
+          "notes": { "type": "object" },
+          "reference_list": { "type": "array" },
+          "figures_tables": { "type": "object" },
+          "page_range": { "type": ["string", "null"] },
+          "char_count_total": { "type": ["integer", "null"] },
+          "provenance": {
+            "type": "object",
+            "required": ["source_ledger", "extraction_method", "mu_version"],
+            "additionalProperties": true,
+            "properties": {
+              "source_ledger": { "type": "string", "minLength": 1 },
+              "extraction_method": { "type": "string", "minLength": 1 },
+              "mu_version": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "full_mode_required_structure_fields": {
+      "const": ["section_tree", "paragraph_sequence", "reference_list"]
+    },
+    "recommended_structure_fields": {
+      "const": ["notes"]
+    }
+  }
+}

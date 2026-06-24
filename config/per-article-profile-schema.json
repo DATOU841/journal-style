@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal-style per article style profile batch",
+  "type": "object",
+  "required": ["schema", "target_journal", "source_pack", "profiles"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_style_per_article_profile_batch_v1" },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "source_pack": { "type": "string", "minLength": 1 },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema",
+          "article_id",
+          "source_article_id",
+          "dimensions",
+          "evidence_index",
+          "downstream_constraints"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "schema": { "const": "per_article_style_profile_v1" },
+          "article_id": { "type": "string", "minLength": 1 },
+          "source_article_id": { "type": "string", "minLength": 1 },
+          "dimensions": { "type": "object" },
+          "evidence_index": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["article_id", "evidence_path", "provenance"],
+              "additionalProperties": true
+            }
+          },
+          "downstream_constraints": { "type": "array" }
+        }
+      }
+    }
+  }
+}

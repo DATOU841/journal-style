@@ -33,6 +33,11 @@ MANIFEST_TRACKED_CONFIG = [
     "config/stage-gates.json",
     "config/field-policy.json",
     "config/source-profiles-schema.json",
+    "config/mu-fulltext-pack-schema.json",
+    "config/per-article-profile-schema.json",
+    "config/aggregation-schema.json",
+    "config/journal-polish-consumption-pack-schema.json",
+    "config/scoring-model-schema.json",
 ]
 
 MANIFEST_TRACKED_SCRIPTS = [
@@ -42,6 +47,11 @@ MANIFEST_TRACKED_SCRIPTS = [
     "scripts/journal_style_runtime.py",
     "scripts/run_stage_gates.py",
     "scripts/task_adapter.py",
+    "scripts/analyze_per_article_style.py",
+    "scripts/aggregate_journal_style.py",
+    "scripts/export_polish_consumption_pack.py",
+    "scripts/calibrate_fit_scoring.py",
+    "scripts/score_user_manuscript.py",
 ]
 
 OVERRIDE_ALLOWED_STEPS = {
@@ -263,6 +273,12 @@ GATE_ID_MAP = {
     "abstract-metadata-ledger": "abstract-metadata-ledger",
     "no-fulltext-claim-without-rag": "fulltext-claims",
     "no-metadata-only-completion": "completion-label",
+    "mu-fulltext-pack": "mu-fulltext-pack",
+    "per-article-profile-complete": "per-article-profile-complete",
+    "aggregation-threshold": "aggregation-threshold",
+    "provenance-required": "provenance-required",
+    "scoring-replay-calibrated": "scoring-replay-calibrated",
+    "submission-fit-ready": "submission-fit-ready",
 }
 
 

@@ -86,6 +86,9 @@ def rerun_gate(task_dir: Path, step: dict, overrides=None) -> tuple[bool, str]:
 
 
 def step_satisfied(task_dir: Path, step: dict, overrides=None) -> tuple[bool, str]:
+    for rel in step.get("requires_inputs", []):
+        if not (task_dir / rel).exists():
+            return False, f"missing required input: {rel}"
     # produced artifacts must exist on disk
     for rel in step.get("produces", []):
         if not (task_dir / rel).exists():
@@ -97,10 +100,81 @@ def step_satisfied(task_dir: Path, step: dict, overrides=None) -> tuple[bool, st
     return True, "satisfied"
 
 
-def compute_position(task_dir: Path, workflow: dict, overrides=None) -> dict:
-    steps = workflow["steps"]
-    position = {"current_step": None, "next_step": None, "completed": [], "blocked_reason": None}
+def resolve_run_mode(state: dict, requested_mode: str = "") -> str:
+    mode = (
+        requested_mode
+        or state.get("run_mode")
+        or state.get("requested_mode")
+        or (state.get("input") or {}).get("run_mode")
+        or "standard"
+    )
+    mode = str(mode).strip().lower()
+    return mode if mode in {"light", "standard", "full"} else "standard"
+
+
+def workflow_steps_for_mode(workflow: dict, run_mode: str) -> tuple[list[dict], list[str]]:
+    mode_cfg = (workflow.get("run_modes") or {}).get(run_mode) or {}
+    enabled_paths = set(mode_cfg.get("paths") or ["common", "metadata", "metadata_terminal"])
+    steps = []
+    skipped = []
+    for step in workflow["steps"]:
+        paths = set(step.get("paths") or ["common"])
+        if paths & enabled_paths:
+            steps.append(step)
+        else:
+            skipped.append(step["id"])
+    return steps, skipped
+
+
+def _entry_satisfied(step: dict, completed: set[str]) -> tuple[bool, str]:
+    for condition in step.get("entry") or []:
+        if condition == "task_skeleton_exists":
+            continue
+        if condition.endswith(".satisfied"):
+            dep = condition.rsplit(".", 1)[0]
+            if dep not in completed:
+                return False, f"entry condition not satisfied: {condition}"
+    return True, "entry satisfied"
+
+
+def validate_step_order(steps: list[dict]) -> tuple[bool, str]:
+    seen: set[str] = set()
+    ids = {step.get("id") for step in steps}
     for step in steps:
+        for condition in step.get("entry") or []:
+            if condition == "task_skeleton_exists":
+                continue
+            if condition.endswith(".satisfied"):
+                dep = condition.rsplit(".", 1)[0]
+                if dep in ids and dep not in seen:
+                    return False, f"workflow step '{step.get('id')}' appears before entry dependency '{dep}'"
+        seen.add(step.get("id"))
+    return True, "workflow order ok"
+
+
+def compute_position(task_dir: Path, workflow: dict, overrides=None, run_mode: str = "standard") -> dict:
+    steps, skipped = workflow_steps_for_mode(workflow, run_mode)
+    position = {
+        "current_step": None,
+        "next_step": None,
+        "completed": [],
+        "skipped_by_mode": skipped,
+        "run_mode": run_mode,
+        "blocked_reason": None,
+    }
+    order_ok, order_detail = validate_step_order(steps)
+    if not order_ok:
+        position["current_step"] = "workflow_config_error"
+        position["next_step"] = None
+        position["blocked_reason"] = order_detail
+        return position
+    for step in steps:
+        entry_ok, entry_detail = _entry_satisfied(step, set(position["completed"]))
+        if not entry_ok:
+            position["current_step"] = step["id"]
+            position["next_step"] = step["id"]
+            position["blocked_reason"] = entry_detail
+            break
         ok, detail = step_satisfied(task_dir, step, overrides)
         if ok:
             position["completed"].append(step["id"])
@@ -118,6 +192,7 @@ def compute_position(task_dir: Path, workflow: dict, overrides=None) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="journal-style state-machine runner.")
     parser.add_argument("--task-dir", required=True, type=Path)
+    parser.add_argument("--mode", choices=["light", "standard", "full"], default="", help="Run mode. Defaults to task state run_mode/requested_mode or standard.")
     parser.add_argument("--status", action="store_true", help="Report current position only.")
     args = parser.parse_args()
 
@@ -143,15 +218,17 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 4
 
-    workflow = load_workflow_states()
-    position = compute_position(task_dir, workflow, overrides)
-
     state = load_state(task_dir)
+    run_mode = resolve_run_mode(state, args.mode)
+    workflow = load_workflow_states()
+    position = compute_position(task_dir, workflow, overrides, run_mode=run_mode)
+
     state.update({
         "schema": "journal_style_current_run_state_v1",
         "skill_id": "journal-style",
         "authoritative": True,
         "single_state_source": "current-run-state.json",
+        "run_mode": run_mode,
         "demoted_mirrors": ["task-state.json", "wenheng-center-status.json"],
         "release_integrity": integrity,
         "applied_overrides": list(overrides.values()),
@@ -166,9 +243,11 @@ def main() -> int:
 
     print(json.dumps({
         "task_dir": str(task_dir),
+        "run_mode": run_mode,
         "current_step": position["current_step"],
         "next_step": position["next_step"],
         "completed_count": len(position["completed"]),
+        "skipped_by_mode": position["skipped_by_mode"],
         "blocked_reason": position["blocked_reason"],
         "applied_overrides": [o["step"] for o in overrides.values()],
     }, ensure_ascii=False, indent=2))

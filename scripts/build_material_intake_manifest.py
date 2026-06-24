@@ -27,6 +27,11 @@ CANDIDATE_ASSETS = [
     ("rag_import_handoff", "025-rag-import/rag-import-handoff.md"),
     ("zotero_pdf_rag_handoff", "06-gates/zotero-pdf-rag-handoff.json"),
     ("source_profiles", "03-analysis/fulltext-layer/source-profiles-bridge-v2.jsonl"),
+    ("mu_fulltext_core_pack", "03-analysis/fulltext-layer/mu-fulltext-core-pack.json"),
+    ("per_article_profiles", "03-analysis/fulltext-layer/per-article-style-profiles.json"),
+    ("aggregation_bundle", "03-analysis/fulltext-layer/journal-style-aggregation-bundle.json"),
+    ("polish_consumption_pack", "05-handoff/journal-polish-consumption-pack.json"),
+    ("scoring_model", "04-fit-evaluation/journal-fit-scoring-model.json"),
     ("official_identity", "00-official/journal-identity-confirmation.md"),
 ]
 

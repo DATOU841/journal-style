@@ -36,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-year-range", default="", help="Optional target year range.")
     parser.add_argument("--manuscript-path", default="", help="Optional manuscript path.")
     parser.add_argument("--submission-title", default="", help="Optional submission title.")
+    parser.add_argument("--run-mode", choices=["light", "standard", "full"], default="standard", help="Task run mode. full requires MinerU/mu fulltext pack.")
     parser.add_argument("--force", action="store_true", help="Overwrite task-state.json if present.")
     return parser.parse_args()
 
@@ -56,6 +57,8 @@ def main() -> int:
     payload = {
         "skill_id": "journal-style",
         "task_id": args.task_id,
+        "run_mode": args.run_mode,
+        "requested_mode": args.run_mode,
         "journal_name": args.journal_name,
         "journal_identity_status": "pending",
         "title_intake_status": "pending",
@@ -85,6 +88,7 @@ def main() -> int:
         "schema": "journal_style_task_init_v1",
         "skill_id": "journal-style",
         "task_id": args.task_id,
+        "run_mode": args.run_mode,
         "journal_name": args.journal_name,
         "input": payload["input"],
         "created_at": payload["updated_at"],
@@ -100,6 +104,7 @@ def main() -> int:
             "schema": "journal_style_wenheng_status_v1",
             "skill_id": "journal-style",
             "task_id": args.task_id,
+            "run_mode": args.run_mode,
             "task_name": args.journal_name,
             "journal": {
                 "name": args.journal_name,

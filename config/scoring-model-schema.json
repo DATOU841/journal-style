@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal-style calibrated fit scoring model",
+  "type": "object",
+  "required": [
+    "schema",
+    "target_journal",
+    "model_name",
+    "calibration",
+    "dimensions",
+    "scoring_constraints",
+    "replay_scores",
+    "published_score_distribution"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_fit_scoring_model_v1" },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "model_name": { "enum": ["journal_fit_scoring_model_v1", "editorial_preference_proxy_v1"] },
+    "not_editor_simulation": { "type": "boolean" },
+    "no_acceptance_prediction": { "type": "boolean" },
+    "calibration": {
+      "type": "object",
+      "required": ["status", "rounds_completed", "replay_sample_count"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "enum": ["not_started", "in_progress", "calibrated"] },
+        "rounds_completed": { "type": "integer", "minimum": 0 },
+        "replay_sample_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dimension", "weight", "rationale"],
+        "additionalProperties": true,
+        "properties": {
+          "dimension": { "type": "string", "minLength": 1 },
+          "weight": { "type": "number" },
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "published_score_distribution": {
+      "type": "object",
+      "required": ["sample_count", "min", "q1", "median", "q3", "max", "source"],
+      "additionalProperties": true,
+      "properties": {
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "q1": { "type": "number" },
+        "median": { "type": "number" },
+        "q3": { "type": "number" },
+        "max": { "type": "number" },
+        "source": { "const": "replay_scores" }
+      }
+    },
+    "scoring_constraints": {
+      "type": "object",
+      "required": ["source", "section_hierarchy", "abstract_keywords", "reference_constraints"],
+      "additionalProperties": true,
+      "properties": {
+        "source": { "const": "journal_style_aggregation_bundle" },
+        "section_hierarchy": { "type": "object" },
+        "abstract_keywords": { "type": "object" },
+        "reference_constraints": { "type": "object" }
+      }
+    },
+    "replay_scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["article_id", "score"],
+        "additionalProperties": true,
+        "properties": {
+          "article_id": { "type": "string", "minLength": 1 },
+          "score": { "type": "number" }
+        }
+      }
+    }
+  }
+}

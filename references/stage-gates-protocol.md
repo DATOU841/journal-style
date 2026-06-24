@@ -27,6 +27,13 @@
 
 ## Gate 列表
 
+### run-mode path gate
+
+- `light` / `standard` 只推进 common + metadata + metadata terminal 路径。
+- `full` 推进 common + metadata + fulltext + scoring 路径。
+- MinerU/mu 完整全文包是 full 路径 hard gate，不是所有任务 hard gate。
+- metadata-only 终态不得携带全文稳定风格结论。
+
 ### no-metadata-only-completion
 
 - `metadata_analysis=done` 只表示题录/摘要层完成。
@@ -61,3 +68,36 @@
 - 密钥只能通过环境变量或服务器受控 secret 文件加载。
 - evidence 不得包含 key/token/cookie。
 
+### mu-fulltext-pack
+
+- 只验收 `检索入库` 上游交回的 MinerU/mu 完整全文核心包。
+- `mu` 指 MinerU：入库环节把初始 PDF 文献处理成文字版本的方式。
+- 普通 RAG 召回包不能替代 MinerU/mu 完整全文包。
+- full 模式 ready 篇必须包含 `section_tree`、`paragraph_sequence`、`reference_list`；缺任一项不计入 ready 篇数。
+- `notes` 是建议结构字段，低覆盖率只降级注释体例分析，不单独阻断 ready。
+- 就绪篇数低于 10 篇判 `NO_GO`；10-19 篇只允许 `DEGRADED` 初步偏好。
+
+### per-article-profile-complete
+
+- 每篇就绪 MinerU/mu 全文必须有一份逐篇画像。
+- 逐篇画像必须包含题名、摘要、关键词、字数、段落、章节、引言、材料、方法、论证、注释、参考文献和结论方式维度。
+- 每篇必须有 `evidence_index`，不得输出可直接粘贴的正文。
+
+### aggregation-threshold
+
+- 聚合必须消费逐篇画像。
+- 少于 10 篇只能样本观察；20 篇以上才允许稳定体例结论。
+- 论证风格和参考文献生态高置信结论要求 30 篇以上。
+
+### provenance-required
+
+- 下游消费包和约束锁必须有 `evidence_index`。
+- 证据必须能反查到 article_id、source path 和 provenance。
+
+### scoring-replay-calibrated
+
+- `journal_fit_scoring_model_v1` 必须声明不模拟具体主编、不预测录用。
+- 必须先完成已刊样本回放，并形成已刊样本分数分布。
+- 未校准不得用于用户稿件分位定位。
+- `submission-fit-score.md` 必须在评分模型校准之后生成；不得先出用户稿适配分再事后校准。
+- `submission-fit-ready` gate 必须复核 `journal-fit-scoring-model.json` 已通过 `scoring-replay-calibrated`，否则即使 `submission-fit-score.md` 已存在也不能推进。

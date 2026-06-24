@@ -74,6 +74,97 @@
     "secret-boundary": {
       "fail_closed": true,
       "field_policy_ref": "config/field-policy.json"
+    },
+    "mu-fulltext-pack": {
+      "fail_closed": true,
+      "processor": "MinerU/mu",
+      "ordinary_rag_is_not_substitute": true,
+      "require_registered_in_step0": true,
+      "ready_article_min": 10,
+      "stable_article_min": 20,
+      "argument_reference_stable_min": 30,
+      "required_article_fields": [
+        "article_id",
+        "title",
+        "authors",
+        "year",
+        "column",
+        "mu_fulltext",
+        "fulltext_sha256",
+        "provenance",
+        "core_library_joined"
+      ],
+      "required_structure_fields": [
+        "section_tree",
+        "paragraph_sequence",
+        "reference_list"
+      ],
+      "recommended_structure_fields": [
+        "notes"
+      ]
+    },
+    "per-article-profile-complete": {
+      "fail_closed": true,
+      "require_profile_per_ready_article": true,
+      "required_dimensions": [
+        "title_structure",
+        "abstract_profile",
+        "keywords_profile",
+        "length_band",
+        "paragraph_stats",
+        "section_hierarchy",
+        "intro_pattern",
+        "material_types",
+        "method_types",
+        "argument_rhythm",
+        "notes_profile",
+        "reference_profile",
+        "conclusion_pattern"
+      ],
+      "require_evidence_index": true,
+      "forbid_direct_reusable_text": true
+    },
+    "aggregation-threshold": {
+      "fail_closed": true,
+      "required_named_artifacts": [
+        "journal-style-constraints-lock",
+        "journal-format-convention-profile",
+        "journal-argument-preference-profile",
+        "journal-reference-ecology-lock",
+        "journal-polish-consumption-pack"
+      ],
+      "sample_observation_max": 9,
+      "preliminary_min": 10,
+      "stable_min": 20,
+      "argument_reference_high_min": 30,
+      "require_artifact_metadata": [
+        "sample_count",
+        "coverage",
+        "confidence",
+        "degrade_label",
+        "evidence_index"
+      ]
+    },
+    "provenance-required": {
+      "fail_closed": true,
+      "require_evidence_index": true,
+      "require_article_ids": true,
+      "require_source_paths": true
+    },
+    "scoring-replay-calibrated": {
+      "fail_closed": true,
+      "model_schema": "journal_fit_scoring_model_v1",
+      "minimum_rounds_completed": 1,
+      "recommended_rounds_completed": 3,
+      "minimum_replay_sample_count": 10,
+      "must_not_simulate_editor": true,
+      "must_not_predict_acceptance": true,
+      "require_published_distribution": true
+    },
+    "submission-fit-ready": {
+      "fail_closed": true,
+      "requires_calibrated_model_gate": "scoring-replay-calibrated",
+      "rule": "submission-fit-score.md is reachable only after journal-fit-scoring-model.json passes scoring-replay-calibrated."
     }
   },
   "dimension_thresholds": {

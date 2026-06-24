@@ -6,6 +6,7 @@
 - 选题专项库采集
 - 相邻 / 竞品期刊参照库采集
 - 用户参考文献核验库补充
+- MinerU/mu 完整全文核心包补采
 
 ## 2. 请求 JSON
 
@@ -17,6 +18,8 @@
   "target_count": 500,
   "include_pdf": true,
   "include_rag": true,
+  "require_mu_fulltext": false,
+  "mu_processor": "MinerU",
   "fields": ["title", "author", "institution", "abstract", "keywords", "references"],
   "exclude_rules": ["会议综述", "书评"],
   "zotero_collection_name": "",
@@ -26,7 +29,8 @@
     "min_pdf_rate": 0.5,
     "min_rag_success_rate": 0.8,
     "require_recall_test": true,
-    "require_item_level_receipt": true
+    "require_item_level_receipt": true,
+    "min_mu_fulltext_ready_rate": 0.8
   },
   "secret_policy": "env_only_no_process_arg_key",
   "notes": ""
@@ -39,6 +43,7 @@
 - `topic_library`：围绕用户方向的选题专项库。
 - `peer_journals`：相邻或竞品期刊参照库。
 - `user_refs`：用户稿件参考文献核验库。
+- `mu_fulltext_core_pack`：核心库文章 MinerU/mu 完整全文材料包。
 
 ## 4. 请求示例
 
@@ -92,4 +97,8 @@
 - 目标数量明确。
 - 需要 PDF / RAG 时必须写明验收标准。
 - 需要 Zotero/PDF/RAG 时必须要求 item-level receipt；runner report 不得作为正式完成依据。
+- 需要全文体例分析时必须设置 `require_mu_fulltext=true`，并要求 MinerU/mu 处理后的完整文本、章节树、段落序列、注释和参考文献表。
+- full 模式 MinerU/mu 核心包中，`section_tree`、`paragraph_sequence`、`reference_list` 为硬必交字段；缺任一项的文章不计入 journal-style 的 ready 篇数。
+- `notes` 为建议字段，能帮助注释体例分析；若上游无法稳定抽取，应在交接中标明缺口，不得用普通 RAG 片段替代。
+- 普通 RAG 片段不得作为 MinerU/mu 完整全文包的替代品。
 - 密钥必须通过环境变量或服务器受控 secret 文件加载，不得通过进程参数传递。

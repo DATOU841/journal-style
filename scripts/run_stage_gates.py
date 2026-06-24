@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -83,6 +85,16 @@ CLAIM_STABLE_MIN = _cfg("gates.no-fulltext-claim-without-rag.stable_style_claim_
 CLAIM_RAG_MIN = _cfg("gates.no-fulltext-claim-without-rag.rag_available_rate_min", 0.5)
 # abstract coverage warn
 ABSTRACT_WARN_BELOW = _cfg("gates.abstract-metadata-ledger.abstract_coverage_warn_below", 0.5)
+MU_READY_MIN = _cfg("gates.mu-fulltext-pack.ready_article_min", 10)
+MU_STABLE_MIN = _cfg("gates.mu-fulltext-pack.stable_article_min", 20)
+ARG_REF_HIGH_MIN = _cfg("gates.mu-fulltext-pack.argument_reference_stable_min", 30)
+PROFILE_REQUIRED_DIMS = _cfg("gates.per-article-profile-complete.required_dimensions", [])
+AGG_PRELIM_MIN = _cfg("gates.aggregation-threshold.preliminary_min", 10)
+AGG_STABLE_MIN = _cfg("gates.aggregation-threshold.stable_min", 20)
+AGG_ARG_REF_HIGH_MIN = _cfg("gates.aggregation-threshold.argument_reference_high_min", 30)
+AGG_REQUIRED_ARTIFACTS = _cfg("gates.aggregation-threshold.required_named_artifacts", [])
+SCORING_ROUNDS_MIN = _cfg("gates.scoring-replay-calibrated.minimum_rounds_completed", 1)
+SCORING_REPLAY_MIN = _cfg("gates.scoring-replay-calibrated.minimum_replay_sample_count", 10)
 
 
 def load_json(path: Path):
@@ -111,6 +123,31 @@ def as_float(value, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
+
+
+def scoring_distribution(scores: list[float]) -> dict:
+    vals = sorted(float(score) for score in scores)
+    if not vals:
+        return {}
+    return {
+        "sample_count": len(vals),
+        "min": round(vals[0], 2),
+        "q1": round(vals[len(vals) // 4], 2),
+        "median": round(float(statistics.median(vals)), 2),
+        "q3": round(vals[(len(vals) * 3) // 4], 2),
+        "max": round(vals[-1], 2),
+    }
+
+
+def same_number(left, right) -> bool:
+    try:
+        return abs(float(left) - float(right)) <= 0.01
+    except Exception:
+        return False
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def result(gate: str, verdict: str, problems: list[str], warnings: list[str], details: dict) -> dict:
@@ -427,6 +464,402 @@ def gate_dimension_evidence(path: Path) -> dict:
     )
 
 
+def gate_mu_fulltext_pack(path: Path) -> dict:
+    """Validate a MinerU/mu complete-text core pack.
+
+    MinerU/mu is the upstream PDF-to-text processing route. This gate only
+    accepts the complete text pack handed off by upstream work; it does not
+    retrieve PDFs, run MinerU, or query RAG.
+    """
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    if data.get("schema") != "journal_style_mu_fulltext_core_pack_v1":
+        problems.append(f"unexpected schema: {data.get('schema')}")
+    if data.get("mu_processing_required") is not True:
+        problems.append("mu_processing_required must be true")
+    processor = str(data.get("mu_processor") or "")
+    if processor and processor.lower() not in {"mineru", "mu"}:
+        problems.append(f"unexpected mu_processor: {processor}")
+    if data.get("ordinary_rag_is_not_substitute") is not True:
+        warnings.append("ordinary_rag_is_not_substitute should be true")
+
+    required = _cfg("gates.mu-fulltext-pack.required_article_fields", [])
+    required_structure_fields = _cfg("gates.mu-fulltext-pack.required_structure_fields", [])
+    recommended_structure_fields = _cfg(
+        "gates.mu-fulltext-pack.recommended_structure_fields",
+        _cfg("gates.mu-fulltext-pack.structure_fields", []),
+    )
+    articles = data.get("articles") or []
+    ready = 0
+    ready_article_ids: list[str] = []
+    required_structure_coverage = {field: 0 for field in required_structure_fields}
+    recommended_structure_coverage = {field: 0 for field in recommended_structure_fields}
+    for index, article in enumerate(articles, 1):
+        missing = [field for field in required if article.get(field) in (None, "", [], {})]
+        if missing:
+            problems.append(f"article {index}: missing required fields: {', '.join(missing)}")
+            continue
+        missing_structure = [
+            field for field in required_structure_fields
+            if article.get(field) in (None, "", [], {})
+        ]
+        if missing_structure:
+            problems.append(
+                f"article {article.get('article_id')}: missing required full-mode structure fields: "
+                f"{', '.join(missing_structure)}"
+            )
+            continue
+        if article.get("core_library_joined") is not True:
+            problems.append(f"article {article.get('article_id')}: not joined back to core library")
+            continue
+        provenance = article.get("provenance") or {}
+        for field in ("source_ledger", "extraction_method", "mu_version"):
+            if not provenance.get(field):
+                problems.append(f"article {article.get('article_id')}: provenance missing {field}")
+        fulltext = str(article.get("mu_fulltext") or "")
+        if article.get("fulltext_sha256") != sha256_text(fulltext):
+            problems.append(f"article {article.get('article_id')}: fulltext_sha256 mismatch")
+            continue
+        ready += 1
+        ready_article_ids.append(str(article.get("article_id")))
+        for field in required_structure_fields:
+            if article.get(field) not in (None, "", [], {}):
+                required_structure_coverage[field] += 1
+        for field in recommended_structure_fields:
+            if article.get(field) not in (None, "", [], {}):
+                recommended_structure_coverage[field] += 1
+
+    if ready < MU_READY_MIN:
+        problems.append(f"MinerU/mu fulltext ready articles {ready} below minimum {MU_READY_MIN}")
+    elif ready < MU_STABLE_MIN:
+        warnings.append(f"MinerU/mu fulltext ready articles {ready} only support preliminary preferences")
+    for field, count in recommended_structure_coverage.items():
+        rate = count / ready if ready else 0
+        if ready and rate < 0.8:
+            warnings.append(f"recommended structure field '{field}' coverage {rate:.2f} below 0.80")
+
+    return result(
+        "mu-fulltext-pack",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {
+            "article_count": len(articles),
+            "ready_article_count": ready,
+            "ready_article_ids": ready_article_ids,
+            "stable_article_min": MU_STABLE_MIN,
+            "argument_reference_high_min": ARG_REF_HIGH_MIN,
+            "required_structure_coverage": {
+                field: round(count / ready, 4) if ready else 0
+                for field, count in required_structure_coverage.items()
+            },
+            "recommended_structure_coverage": {
+                field: round(count / ready, 4) if ready else 0
+                for field, count in recommended_structure_coverage.items()
+            },
+        },
+    )
+
+
+def _direct_text_keys(obj) -> list[str]:
+    bad_keys = {
+        "paragraph",
+        "sentence",
+        "draft_text",
+        "rewritten_text",
+        "copyable_text",
+        "正文",
+    }
+    hits: list[str] = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if str(key).lower() in bad_keys:
+                hits.append(str(key))
+            hits.extend(_direct_text_keys(value))
+    elif isinstance(obj, list):
+        for item in obj:
+            hits.extend(_direct_text_keys(item))
+    return hits
+
+
+def _load_mu_pack_for_profile_batch(path: Path, data: dict) -> dict | None:
+    source_pack = data.get("source_pack") or data.get("source_mu_pack")
+    if not source_pack:
+        return None
+    candidate = Path(source_pack)
+    if not candidate.is_absolute():
+        candidate = (path.parent / candidate).resolve()
+        if not candidate.exists():
+            parents = list(path.parents)
+            for parent in parents:
+                maybe = parent / source_pack
+                if maybe.exists():
+                    candidate = maybe.resolve()
+                    break
+    if not candidate.exists():
+        return None
+    try:
+        return load_json(candidate)
+    except Exception:
+        return None
+
+
+def _ready_articles_from_mu_pack(pack: dict | None) -> tuple[set[str], int]:
+    if not pack:
+        return set(), 0
+    ready_ids: set[str] = set()
+    required = _cfg("gates.mu-fulltext-pack.required_article_fields", [])
+    required_structure_fields = _cfg("gates.mu-fulltext-pack.required_structure_fields", [])
+    for article in pack.get("articles") or []:
+        if any(article.get(field) in (None, "", [], {}) for field in required):
+            continue
+        if any(article.get(field) in (None, "", [], {}) for field in required_structure_fields):
+            continue
+        if article.get("core_library_joined") is not True:
+            continue
+        fulltext = str(article.get("mu_fulltext") or "")
+        if article.get("fulltext_sha256") != sha256_text(fulltext):
+            continue
+        provenance = article.get("provenance") or {}
+        if any(not provenance.get(field) for field in ("source_ledger", "extraction_method", "mu_version")):
+            continue
+        ready_ids.add(str(article.get("article_id")))
+    return ready_ids, len(ready_ids)
+
+
+def gate_per_article_profile_complete(path: Path) -> dict:
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    if data.get("schema") != "journal_style_per_article_profile_batch_v1":
+        problems.append(f"unexpected schema: {data.get('schema')}")
+    profiles = data.get("profiles") or []
+    mu_pack = _load_mu_pack_for_profile_batch(path, data)
+    mu_ready_ids, mu_ready_count = _ready_articles_from_mu_pack(mu_pack)
+    self_reported_count = int(data.get("ready_article_count") or data.get("source_ready_article_count") or 0)
+    expected_count = mu_ready_count or self_reported_count or len(profiles)
+    if (data.get("source_pack") or data.get("source_mu_pack")) and mu_pack is None:
+        problems.append("source_pack declared but MinerU/mu pack could not be loaded")
+    if mu_ready_count and self_reported_count and self_reported_count < mu_ready_count:
+        problems.append(
+            f"ready_article_count self-report {self_reported_count} below mu pack ready count {mu_ready_count}"
+        )
+    if not profiles:
+        problems.append("no per-article profiles")
+    if expected_count and len(profiles) < expected_count:
+        problems.append(f"per-article profile count {len(profiles)} below ready article count {expected_count}")
+    seen = set()
+    for profile in profiles:
+        article_id = profile.get("article_id")
+        if not article_id:
+            problems.append("profile missing article_id")
+            continue
+        if article_id in seen:
+            problems.append(f"duplicate profile article_id: {article_id}")
+        seen.add(article_id)
+        if mu_ready_ids and article_id not in mu_ready_ids:
+            problems.append(f"profile {article_id}: article_id not found in mu ready articles")
+        if profile.get("schema") != "per_article_style_profile_v1":
+            problems.append(f"profile {article_id}: schema mismatch")
+        dims = profile.get("dimensions") or {}
+        missing_dims = [dim for dim in PROFILE_REQUIRED_DIMS if dim not in dims]
+        if missing_dims:
+            problems.append(f"profile {article_id}: missing dimensions: {', '.join(missing_dims)}")
+        evidence = profile.get("evidence_index") or []
+        if not evidence:
+            problems.append(f"profile {article_id}: evidence_index missing")
+        for entry in evidence:
+            if not entry.get("article_id") or not entry.get("evidence_path") or not entry.get("provenance"):
+                problems.append(f"profile {article_id}: evidence entry lacks article_id/evidence_path/provenance")
+                break
+        hits = _direct_text_keys(profile.get("downstream_constraints") or [])
+        if hits:
+            problems.append(f"profile {article_id}: downstream constraints include direct reusable text keys: {', '.join(sorted(set(hits)))}")
+    return result(
+        "per-article-profile-complete",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {
+            "profile_count": len(profiles),
+            "expected_count": expected_count,
+            "mu_ready_article_count": mu_ready_count,
+            "self_reported_ready_article_count": self_reported_count,
+        },
+    )
+
+
+def gate_aggregation_threshold(path: Path) -> dict:
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    if data.get("schema") != "journal_style_aggregation_bundle_v1":
+        problems.append(f"unexpected schema: {data.get('schema')}")
+    bundle_sample = int(data.get("sample_count") or 0)
+    artifacts = data.get("artifacts") or []
+    if not artifacts:
+        problems.append("aggregation bundle has no artifacts")
+    artifact_names = {artifact.get("name") for artifact in artifacts}
+    missing_artifacts = [name for name in AGG_REQUIRED_ARTIFACTS if name not in artifact_names]
+    if missing_artifacts:
+        problems.append(f"aggregation bundle missing required artifacts: {', '.join(missing_artifacts)}")
+    for artifact in artifacts:
+        name = artifact.get("name") or "<unnamed>"
+        dimension = str(artifact.get("dimension") or "")
+        sample_count = int(artifact.get("sample_count") or bundle_sample or 0)
+        conclusion = artifact.get("conclusion_strength")
+        confidence = artifact.get("confidence")
+        evidence = artifact.get("evidence_index") or []
+        for field in ("sample_count", "coverage", "confidence", "degrade_label", "evidence_index"):
+            if field not in artifact:
+                problems.append(f"artifact {name}: missing {field}")
+        if not evidence:
+            problems.append(f"artifact {name}: evidence_index empty")
+        if sample_count < AGG_PRELIM_MIN and conclusion != "sample_observation":
+            problems.append(f"artifact {name}: sample_count {sample_count} below {AGG_PRELIM_MIN}; only sample_observation allowed")
+        if sample_count < AGG_STABLE_MIN and conclusion == "stable":
+            problems.append(f"artifact {name}: stable conclusion requires sample_count >= {AGG_STABLE_MIN}")
+        if dimension in {"argument_style", "reference_ecology", "reference_network"} and sample_count < AGG_ARG_REF_HIGH_MIN and confidence == "high":
+            problems.append(f"artifact {name}: high-confidence {dimension} requires sample_count >= {AGG_ARG_REF_HIGH_MIN}")
+        if sample_count < AGG_STABLE_MIN and not artifact.get("degrade_label"):
+            warnings.append(f"artifact {name}: low sample count should carry a degrade_label")
+    return result(
+        "aggregation-threshold",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {"bundle_sample_count": bundle_sample, "artifact_count": len(artifacts)},
+    )
+
+
+def gate_provenance_required(path: Path) -> dict:
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    evidence = data.get("evidence_index") or []
+    if not evidence:
+        problems.append("evidence_index missing or empty")
+    for index, entry in enumerate(evidence, 1):
+        if not (entry.get("article_id") or entry.get("source_article_id")):
+            problems.append(f"evidence {index}: missing article_id/source_article_id")
+        if not (entry.get("evidence_path") or entry.get("source_path")):
+            problems.append(f"evidence {index}: missing evidence_path/source_path")
+        if not entry.get("provenance"):
+            problems.append(f"evidence {index}: missing provenance")
+    if data.get("schema") == "journal_style_profile_v1":
+        if data.get("metadata_only") is True and data.get("source_evidence_scope") == "mu_fulltext_core_pack":
+            problems.append("metadata_only cannot be true when source_evidence_scope is mu_fulltext_core_pack")
+        if data.get("source_evidence_scope") != "mu_fulltext_core_pack":
+            warnings.append("profile is not backed by a MinerU/mu fulltext core pack; downstream fulltext style use must be degraded")
+    return result(
+        "provenance-required",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {"evidence_count": len(evidence), "schema": data.get("schema")},
+    )
+
+
+def gate_scoring_replay_calibrated(path: Path) -> dict:
+    data = load_json(path)
+    problems: list[str] = []
+    warnings: list[str] = []
+    if data.get("schema") != "journal_fit_scoring_model_v1":
+        problems.append(f"unexpected schema: {data.get('schema')}")
+    if data.get("not_editor_simulation") is not True:
+        problems.append("scoring model must declare not_editor_simulation=true")
+    if data.get("no_acceptance_prediction") is not True:
+        problems.append("scoring model must declare no_acceptance_prediction=true")
+    calibration = data.get("calibration") or {}
+    rounds = int(calibration.get("rounds_completed") or 0)
+    replay_count = int(calibration.get("replay_sample_count") or 0)
+    if calibration.get("status") != "calibrated":
+        problems.append("calibration.status must be calibrated")
+    if calibration.get("source") != "per_article_profile_replay":
+        problems.append("calibration.source must be per_article_profile_replay")
+    if rounds < SCORING_ROUNDS_MIN:
+        problems.append(f"calibration rounds {rounds} below minimum {SCORING_ROUNDS_MIN}")
+    if replay_count < SCORING_REPLAY_MIN:
+        problems.append(f"replay_sample_count {replay_count} below minimum {SCORING_REPLAY_MIN}")
+    constraints = data.get("scoring_constraints") or {}
+    if constraints.get("source") != "journal_style_aggregation_bundle":
+        problems.append("scoring_constraints.source must be journal_style_aggregation_bundle")
+    for group, keys in (
+        ("section_hierarchy", ("section_min", "section_max")),
+        ("abstract_keywords", ("keyword_min", "keyword_max")),
+        ("reference_constraints", ("reference_min", "reference_max")),
+    ):
+        block = constraints.get(group) or {}
+        for key in keys:
+            if block.get(key) is None:
+                problems.append(f"scoring_constraints.{group} missing {key}")
+                break
+    replay_scores = data.get("replay_scores") or []
+    if len(replay_scores) < SCORING_REPLAY_MIN:
+        problems.append("replay_scores below minimum")
+    if replay_count and len(replay_scores) != replay_count:
+        problems.append("replay_scores count must match calibration.replay_sample_count")
+    replay_values: list[float] = []
+    for index, item in enumerate(replay_scores, 1):
+        if not item.get("article_id"):
+            problems.append(f"replay score {index}: missing article_id")
+            break
+        if item.get("score") is None:
+            problems.append(f"replay score {index}: missing score")
+            break
+        replay_values.append(float(item.get("score")))
+    distribution = data.get("published_score_distribution") or {}
+    if int(distribution.get("sample_count") or 0) < SCORING_REPLAY_MIN:
+        problems.append("published_score_distribution sample_count below minimum")
+    if int(distribution.get("sample_count") or 0) != len(replay_scores):
+        problems.append("published_score_distribution sample_count must match replay_scores count")
+    if distribution.get("source") != "replay_scores":
+        problems.append("published_score_distribution.source must be replay_scores")
+    for field in ("min", "q1", "median", "q3", "max"):
+        if distribution.get(field) is None:
+            problems.append(f"published_score_distribution missing {field}")
+    if replay_values:
+        expected = scoring_distribution(replay_values)
+        for field in ("min", "q1", "median", "q3", "max"):
+            if distribution.get(field) is not None and not same_number(distribution.get(field), expected.get(field)):
+                problems.append(f"published_score_distribution {field} does not match replay_scores")
+                break
+    dimensions = data.get("dimensions") or []
+    if not dimensions:
+        problems.append("scoring dimensions missing")
+    for dimension in dimensions:
+        if not dimension.get("dimension") or dimension.get("weight") is None:
+            problems.append("scoring dimension missing dimension/weight")
+            break
+        if not dimension.get("rationale"):
+            problems.append(f"scoring dimension {dimension.get('dimension')}: missing rationale")
+            break
+    return result(
+        "scoring-replay-calibrated",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {"rounds_completed": rounds, "replay_sample_count": replay_count},
+    )
+
+
+def gate_submission_fit_ready(path: Path) -> dict:
+    data = load_json(path)
+    scoring_verdict = gate_scoring_replay_calibrated(path)
+    problems = list(scoring_verdict.get("problems") or [])
+    warnings = list(scoring_verdict.get("warnings") or [])
+    if data.get("schema") != "journal_fit_scoring_model_v1":
+        problems.append("submission fit requires journal-fit-scoring-model.json as gate input")
+    return result(
+        "submission-fit-ready",
+        NO_GO if problems else DEGRADED if warnings else PASS,
+        problems,
+        warnings,
+        {"model_gate": scoring_verdict.get("verdict")},
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run journal-style stage gates.")
     parser.add_argument(
@@ -441,6 +874,12 @@ def main() -> int:
             "fulltext-claims",
             "material-intake",
             "dimension-evidence",
+            "mu-fulltext-pack",
+            "per-article-profile-complete",
+            "aggregation-threshold",
+            "provenance-required",
+            "scoring-replay-calibrated",
+            "submission-fit-ready",
         ],
     )
     parser.add_argument("--input", required=True)
@@ -478,6 +917,12 @@ def main() -> int:
         "fulltext-claims": gate_fulltext_claims,
         "material-intake": gate_material_intake,
         "dimension-evidence": gate_dimension_evidence,
+        "mu-fulltext-pack": gate_mu_fulltext_pack,
+        "per-article-profile-complete": gate_per_article_profile_complete,
+        "aggregation-threshold": gate_aggregation_threshold,
+        "provenance-required": gate_provenance_required,
+        "scoring-replay-calibrated": gate_scoring_replay_calibrated,
+        "submission-fit-ready": gate_submission_fit_ready,
     }
     gate_result = handlers[args.gate](input_path)
     text = json.dumps(gate_result, ensure_ascii=False, indent=2)

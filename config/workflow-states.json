@@ -2,6 +2,20 @@
   "schema": "journal_style_workflow_states_v1",
   "_note": "Machine-readable state machine for the journal-style runner. Each step declares entry conditions, required inputs, produced artifacts, governing gate, and next step. The runner advances strictly in order; a step cannot be entered until its prerequisite step is gate-verified. Steps without a gate cannot be marked satisfied_by_prior_run (P6 iron rule).",
   "authoritative_state_file": "current-run-state.json",
+  "run_modes": {
+    "light": {
+      "paths": ["common", "metadata", "metadata_terminal"],
+      "description": "Identity, title corpus, metadata-layer analysis, and metadata-only handoff. Does not require MinerU/mu fulltext pack."
+    },
+    "standard": {
+      "paths": ["common", "metadata", "metadata_terminal"],
+      "description": "Metadata-grounded journal analysis path. Fulltext style claims remain blocked until full mode."
+    },
+    "full": {
+      "paths": ["common", "metadata", "fulltext", "scoring"],
+      "description": "Complete downstream-consumable path requiring MinerU/mu fulltext pack, per-article profiles, aggregation, calibrated scoring, and provenance-gated handoff."
+    }
+  },
   "read_only_mirrors": [
     "task-state.json",
     "05-handoff/wenheng-center-status.json"
@@ -19,6 +33,7 @@
       ],
       "gate": "material-intake",
       "next": "step01_init",
+      "paths": ["common"],
       "resume_skippable": false,
       "_skip_note": "Has gate; may be satisfied only if manifest passes material-intake gate with current sha."
     },
@@ -36,6 +51,7 @@
       ],
       "gate": null,
       "next": "step02_identity",
+      "paths": ["common"],
       "resume_skippable": false,
       "_skip_note": "Produces a non-mirror init receipt (task-init.json), NOT task-state.json. No gate -> cannot be auto-skipped via resume; must be re-run."
     },
@@ -54,6 +70,7 @@
       ],
       "gate": null,
       "next": "step03_title_intake",
+      "paths": ["common"],
       "resume_skippable": false
     },
     {
@@ -71,6 +88,7 @@
       ],
       "gate": null,
       "next": "step04_title_screening",
+      "paths": ["common"],
       "resume_skippable": false
     },
     {
@@ -88,6 +106,7 @@
       ],
       "gate": null,
       "next": "step05_topic_library",
+      "paths": ["common"],
       "resume_skippable": false
     },
     {
@@ -105,6 +124,7 @@
       ],
       "gate": null,
       "next": "step06_zotero_pdf_rag",
+      "paths": ["common"],
       "resume_skippable": false
     },
     {
@@ -121,6 +141,7 @@
       ],
       "gate": "zotero-pdf-rag-handoff",
       "next": "step07_core_library",
+      "paths": ["common"],
       "resume_skippable": true,
       "_skip_note": "External jiansuo-ruku work. May be satisfied_by_prior_run ONLY if handoff artifact passes zotero-pdf-rag-handoff gate with current sha."
     },
@@ -139,8 +160,28 @@
         "02b-core-library/core-library-rejected.json"
       ],
       "gate": "core-library-selection",
-      "next": "step08a_metadata_layer",
+      "next": "step07b_mu_fulltext_pack",
+      "paths": ["common"],
       "resume_skippable": true
+    },
+    {
+      "id": "step07b_mu_fulltext_pack",
+      "name": "Step 7b MinerU/mu fulltext core pack acceptance",
+      "entry": [
+        "step07_core_library.satisfied"
+      ],
+      "requires_inputs": [
+        "02b-core-library/core-library-ledger.json",
+        "03-analysis/fulltext-layer/mu-fulltext-core-pack.json"
+      ],
+      "produces": [
+        "03-analysis/fulltext-layer/mu-fulltext-core-pack.json"
+      ],
+      "gate": "mu-fulltext-pack",
+      "next": "step08a_metadata_layer",
+      "paths": ["fulltext"],
+      "resume_skippable": true,
+      "_boundary": "MinerU/mu pack is produced upstream by 检索入库; journal-style only validates and analyzes the complete text pack."
     },
     {
       "id": "step08a_metadata_layer",
@@ -152,47 +193,106 @@
         "02b-core-library/core-library-ledger.json"
       ],
       "produces": [
-        "03-analysis/metadata-layer/"
+        "03-analysis/metadata-layer/",
+        "03-analysis/metadata-layer/abstract-metadata-ledger.jsonl"
       ],
+      "gate_input": "03-analysis/metadata-layer/abstract-metadata-ledger.jsonl",
       "gate": "abstract-metadata-ledger",
-      "next": "step08b_fulltext_layer",
+      "next": "step08c_metadata_handoff",
+      "paths": ["metadata"],
       "resume_skippable": true
     },
     {
-      "id": "step08b_fulltext_layer",
-      "name": "Step 8b fulltext-layer analysis",
+      "id": "step08c_metadata_handoff",
+      "name": "Step 8c metadata-only handoff",
       "entry": [
         "step08a_metadata_layer.satisfied"
       ],
       "requires_inputs": [
-        "02b-core-library/core-library-ledger.json",
-        "03-analysis/fulltext-layer/source-profiles.jsonl"
+        "03-analysis/metadata-layer/"
       ],
       "produces": [
+        "05-handoff/wenheng-center-status.json"
+      ],
+      "gate": "no-metadata-only-completion",
+      "next": null,
+      "paths": ["metadata_terminal"],
+      "resume_skippable": false,
+      "_rule": "Metadata path terminal. It may only close with METADATA_ONLY_NOT_FULLTEXT_READY or other non-fulltext completion; fulltext style claims remain unavailable."
+    },
+    {
+      "id": "step08b1_per_article_profile",
+      "name": "Step 8b1 per-article fulltext style profiles",
+      "entry": [
+        "step08a_metadata_layer.satisfied"
+      ],
+      "requires_inputs": [
+        "03-analysis/fulltext-layer/mu-fulltext-core-pack.json"
+      ],
+      "produces": [
+        "03-analysis/fulltext-layer/per-article-style-profiles.json"
+      ],
+      "gate": "per-article-profile-complete",
+      "next": "step08b_fulltext_layer",
+      "paths": ["fulltext"],
+      "resume_skippable": false
+    },
+    {
+      "id": "step08b_fulltext_layer",
+      "name": "Step 8b fulltext-layer aggregation",
+      "entry": [
+        "step08b1_per_article_profile.satisfied"
+      ],
+      "requires_inputs": [
+        "03-analysis/fulltext-layer/per-article-style-profiles.json"
+      ],
+      "produces": [
+        "03-analysis/fulltext-layer/journal-style-aggregation-bundle.json",
         "03-analysis/fulltext-layer/journal-rag-fulltext-pattern-report.md",
         "03-analysis/fulltext-layer/journal-method-material-report.md",
         "03-analysis/fulltext-layer/journal-argument-style-report.md",
         "03-analysis/fulltext-layer/journal-reference-ecology-report.md",
         "03-analysis/fulltext-layer/journal-reference-network-report.md"
       ],
-      "gate": "no-fulltext-claim-without-rag",
+      "gate": "aggregation-threshold",
+      "next": "step09b_scoring_calibration",
+      "paths": ["fulltext"],
+      "resume_skippable": false
+    },
+    {
+      "id": "step09b_scoring_calibration",
+      "name": "Step 9b published-sample scoring replay calibration",
+      "entry": [
+        "step08b_fulltext_layer.satisfied"
+      ],
+      "requires_inputs": [
+        "03-analysis/fulltext-layer/journal-style-aggregation-bundle.json"
+      ],
+      "produces": [
+        "04-fit-evaluation/journal-fit-scoring-model.json"
+      ],
+      "gate": "scoring-replay-calibrated",
       "next": "step09_fit",
+      "paths": ["scoring"],
       "resume_skippable": false
     },
     {
       "id": "step09_fit",
       "name": "Step 9 submission fit scoring",
       "entry": [
-        "step08b_fulltext_layer.satisfied"
+        "step09b_scoring_calibration.satisfied"
       ],
       "requires_inputs": [
-        "03-analysis/fulltext-layer/journal-rag-fulltext-pattern-report.md"
+        "03-analysis/fulltext-layer/journal-style-aggregation-bundle.json",
+        "04-fit-evaluation/journal-fit-scoring-model.json"
       ],
       "produces": [
         "04-fit-evaluation/submission-fit-score.md"
       ],
-      "gate": null,
+      "gate_input": "04-fit-evaluation/journal-fit-scoring-model.json",
+      "gate": "submission-fit-ready",
       "next": "step10_handoff",
+      "paths": ["scoring"],
       "resume_skippable": false
     },
     {
@@ -202,16 +302,20 @@
         "step09_fit.satisfied"
       ],
       "requires_inputs": [
-        "04-fit-evaluation/submission-fit-score.md"
+        "04-fit-evaluation/submission-fit-score.md",
+        "04-fit-evaluation/journal-fit-scoring-model.json",
+        "03-analysis/fulltext-layer/journal-style-aggregation-bundle.json"
       ],
       "produces": [
         "04-fit-evaluation/topic-suggestion-report.md",
         "04-fit-evaluation/target-journal-decision.md",
+        "05-handoff/journal-polish-consumption-pack.json",
         "05-handoff/handoff-to-downstream-skills.md",
         "05-handoff/wenheng-center-status.json"
       ],
-      "gate": "no-metadata-only-completion",
+      "gate": "provenance-required",
       "next": null,
+      "paths": ["scoring"],
       "resume_skippable": false
     }
   ]

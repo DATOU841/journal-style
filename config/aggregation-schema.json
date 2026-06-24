@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal-style aggregation bundle",
+  "type": "object",
+  "required": ["schema", "target_journal", "sample_count", "artifacts"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_style_aggregation_bundle_v1" },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "sample_count": { "type": "integer", "minimum": 0 },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "dimension",
+          "sample_count",
+          "coverage",
+          "confidence",
+          "conclusion_strength",
+          "degrade_label",
+          "evidence_index"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "dimension": { "type": "string", "minLength": 1 },
+          "sample_count": { "type": "integer", "minimum": 0 },
+          "coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+          "confidence": { "enum": ["low", "medium", "high"] },
+          "conclusion_strength": { "enum": ["sample_observation", "preliminary", "stable"] },
+          "degrade_label": { "type": "string" },
+          "evidence_index": { "type": "array" }
+        }
+      }
+    }
+  }
+}
