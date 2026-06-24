@@ -335,3 +335,25 @@
 - `/Users/a13497/.codex/skills/journal-style/docs/public-introduction.zh.md`: updates version metadata to `0.1.11`.
 - `/Users/a13497/.codex/skills/journal-style/config/release-manifest.json`: refreshed integrity hashes after adding protected scripts.
 - Rollback: revert the listed files and rebuild `config/release-manifest.json`; publish rollback as a new corrective version rather than moving existing release tags.
+
+## 2026-06-24 - Task: journal-style 0.1.11 release publication
+### What was done
+- Published the Wenheng native execution hard gate as `0.1.11`.
+- Committed the hard-gate code, docs, tests, progress, and version metadata at `b72cac0eb542f9387c7a367498b65cca95b37726`.
+- Re-signed `config/release-manifest.json` from a clean reviewed HEAD and committed it at `8fed3a6d757913068d19215e4f7126a01eb2f7da`.
+- Created and pushed annotated tag `v0.1.11`, pointing to `8fed3a6d757913068d19215e4f7126a01eb2f7da`.
+- Pushed `main` and `v0.1.11` to `origin`; no runtime sync, server connection, CNKI/WoS/Zotero/PDF/MinerU/RAG, C03 writeback, or real Wenheng task was run.
+### Testing
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `python3 -m py_compile scripts/*.py tests/*.py`: passed.
+- JSON validation for `config/*.json` and `templates/*.json`: passed.
+- `git diff --check`: passed.
+- Checked `/Users/a13497/.codex/skills/journal-style` for `__pycache__` / `.pyc` residue after validation cleanup: none found.
+### Notes
+- `/Users/a13497/.codex/skills/journal-style/progress.md`: appended this post-tag release publication record only; the `v0.1.11` tag remains on the release manifest commit and is not moved.
+- Rollback: revert the post-tag progress-record commit if only this audit note should be withdrawn. To roll back the published release itself, do not move `v0.1.11`; publish a corrective commit and follow-up version/tag or explicitly delete the remote tag under release-owner approval.
