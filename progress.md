@@ -303,3 +303,35 @@
 ### Notes
 - `/Users/a13497/.codex/skills/journal-style/progress.md`: appended this post-tag release publication record only; the `v0.1.10` tag remains on the release manifest commit and is not moved.
 - Rollback: revert the post-tag progress-record commit if only this audit note should be withdrawn. To roll back the published release itself, do not move `v0.1.10`; publish a corrective commit and follow-up version/tag or explicitly delete the remote tag under release-owner approval.
+
+## 2026-06-24 - Task: Wenheng native execution hard gate for 0.1.11
+### What was done
+- Prepared `0.1.11` to close the execution bypass between the Wenheng startup gate and the local task runner.
+- Made `journal-style-startup.py` write a task-local `00-intake/wenheng-native-binding.json` receipt after B02/F06/H08 validation, and write `00-intake/wenheng-intake-request.json` when no B02 task is available.
+- Made `build_task_skeleton.py` and `journal_style_runner.py` fail closed by default unless the task has a validated Wenheng native binding receipt; legacy/debug execution now requires an explicit flag or environment variable and cannot become production evidence.
+- Added `task_folder`, `target_skill`, `source_run_id`, and `h08_evidence_stub` to the required native binding payload so later B02 timeline, H08 evidence, archive, and C03 source-lock integration have stable task identity.
+- Added the Wenheng startup/binding scripts to release-manifest integrity tracking.
+### Testing
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures after adding Wenheng native hard-gate fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 -m py_compile scripts/*.py tests/*.py`: passed.
+- JSON validation for `config/*.json` and `templates/*.json`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+### Notes
+- `/Users/a13497/.codex/skills/journal-style/scripts/wenheng_native.py`: added binding receipt, intake request, production/native validation, and required task packet fields.
+- `/Users/a13497/.codex/skills/journal-style/scripts/journal-style-startup.py`: writes binding receipts on validated startup and intake requests on missing B02 binding.
+- `/Users/a13497/.codex/skills/journal-style/scripts/build_task_skeleton.py`: requires validated native binding by default, with explicit offline legacy/debug escape.
+- `/Users/a13497/.codex/skills/journal-style/scripts/journal_style_runner.py`: requires validated native binding by default before release integrity and workflow evaluation.
+- `/Users/a13497/.codex/skills/journal-style/scripts/journal_style_runtime.py`: adds the Wenheng native entry scripts to release integrity tracking.
+- `/Users/a13497/.codex/skills/journal-style/tests/run_state_machine_fixtures.py`: adds must-fail and success coverage for native binding, skeleton, runner, and intake request behavior.
+- `/Users/a13497/.codex/skills/journal-style/docs/wenheng-native-protocol.md`: documents the binding receipt and hard-gate execution rule.
+- `/Users/a13497/.codex/skills/journal-style/SKILL.md`: surfaces the production/native binding receipt rule in the skill entrypoint.
+- `/Users/a13497/.codex/skills/journal-style/VERSION`: bumps the release target to `0.1.11`.
+- `/Users/a13497/.codex/skills/journal-style/README.md`: updates version metadata to `0.1.11`.
+- `/Users/a13497/.codex/skills/journal-style/docs/public-introduction.zh.md`: updates version metadata to `0.1.11`.
+- `/Users/a13497/.codex/skills/journal-style/config/release-manifest.json`: refreshed integrity hashes after adding protected scripts.
+- Rollback: revert the listed files and rebuild `config/release-manifest.json`; publish rollback as a new corrective version rather than moving existing release tags.

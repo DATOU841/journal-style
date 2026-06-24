@@ -8,6 +8,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from wenheng_native import WenhengNativeError, production_required, validate_binding_receipt
+
 
 DEFAULT_DIRS = [
     "00-intake",
@@ -38,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--submission-title", default="", help="Optional submission title.")
     parser.add_argument("--run-mode", choices=["light", "standard", "full"], default="standard", help="Task run mode. full requires MinerU/mu fulltext pack.")
     parser.add_argument("--force", action="store_true", help="Overwrite task-state.json if present.")
+    parser.add_argument("--allow-legacy-debug", action="store_true", help="Allow skeleton creation without Wenheng binding for offline debugging only.")
     return parser.parse_args()
 
 
@@ -45,6 +48,11 @@ def main() -> int:
     args = parse_args()
     task_dir = Path(args.task_dir).expanduser().resolve()
     task_dir.mkdir(parents=True, exist_ok=True)
+    production = production_required() or not args.allow_legacy_debug
+    try:
+        binding = validate_binding_receipt(task_dir, production=production)
+    except WenhengNativeError as exc:
+        raise SystemExit(str(exc))
 
     for rel in DEFAULT_DIRS:
         (task_dir / rel).mkdir(parents=True, exist_ok=True)
@@ -57,6 +65,12 @@ def main() -> int:
     payload = {
         "skill_id": "journal-style",
         "task_id": args.task_id,
+        "wenheng_native": {
+            "required": production,
+            "validated": bool(binding.get("native")),
+            "wenheng_task_id": binding.get("wenheng_task_id", ""),
+            "production_evidence_allowed": bool(binding.get("production_evidence_allowed")),
+        },
         "run_mode": args.run_mode,
         "requested_mode": args.run_mode,
         "journal_name": args.journal_name,
@@ -88,6 +102,7 @@ def main() -> int:
         "schema": "journal_style_task_init_v1",
         "skill_id": "journal-style",
         "task_id": args.task_id,
+        "wenheng_native": payload["wenheng_native"],
         "run_mode": args.run_mode,
         "journal_name": args.journal_name,
         "input": payload["input"],
@@ -104,6 +119,8 @@ def main() -> int:
             "schema": "journal_style_wenheng_status_v1",
             "skill_id": "journal-style",
             "task_id": args.task_id,
+            "wenheng_native": payload["wenheng_native"],
+            "style_memory_not_applicable_reason": binding.get("style_memory_not_applicable_reason", ""),
             "run_mode": args.run_mode,
             "task_name": args.journal_name,
             "journal": {

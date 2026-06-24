@@ -17,6 +17,15 @@
 
 缺少任一关键字段时，只能生成 `wenheng-intake-request`，不得正式分析、评分或产出 C03 profile。
 
+## 启动收据与执行闸门
+
+正式任务必须先运行 `scripts/journal-style-startup.py`。该入口验证 B02/F06/H08 后，在 task folder 写入 `00-intake/wenheng-native-binding.json`，作为后续本地执行入口的唯一 task-local 文衡绑定收据。
+
+- `scripts/build_task_skeleton.py` 默认要求该绑定收据存在且为 `validated_by_b02_task_api`，否则 fail-closed。
+- `scripts/journal_style_runner.py` 默认要求该绑定收据存在且为 `validated_by_b02_task_api`，否则 fail-closed。
+- 只有显式离线调试可以使用 `--allow-legacy-debug` 或 `WENHENG_ALLOW_LEGACY_FLOW=1`；legacy/debug 输出不得作为 production evidence、C03 profile 或 H08 完成证据。
+- `00-intake/wenheng-intake-request.json` 只是请求文衡创建或绑定 B02 task 的待办，不是正式任务开始凭证。
+
 ## G07 适用性
 
 本 skill 不写正文、不润色正文、不模仿期刊语气，正文风格类 G07 rules 默认不适用；必须在 `wenheng-center-status.json`、H08 evidence 和 C03 handoff 中写 `style_memory_not_applicable_reason`。若面向用户的分析摘要或交接说明需要中文表达约束，可读取 G07 active rules 并记录 applied/ignored/conflicts。

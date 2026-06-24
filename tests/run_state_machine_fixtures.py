@@ -33,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent
@@ -44,6 +45,19 @@ RESULTS = []
 
 def run(args, **kw):
     return subprocess.run([PY, *args], capture_output=True, text=True, **kw)
+
+
+def run_legacy(args, **kw):
+    env = dict(os.environ)
+    env["WENHENG_ALLOW_LEGACY_FLOW"] = "1"
+    return subprocess.run([PY, *args], capture_output=True, text=True, env=env, **kw)
+
+
+def run_legacy_in_production(args, **kw):
+    env = dict(os.environ)
+    env["WENHENG_ALLOW_LEGACY_FLOW"] = "1"
+    env["WENHENG_PRODUCTION_MODE"] = "1"
+    return subprocess.run([PY, *args], capture_output=True, text=True, env=env, **kw)
 
 
 def record(name, passed, detail=""):
@@ -314,6 +328,38 @@ def make_metadata_ready_task(tmp: Path, name: str, mode: str = "standard") -> Pa
     return task
 
 
+def write_native_binding(task: Path) -> None:
+    write(task / "00-intake" / "wenheng-native-binding.json", {
+        "schema": "journal_style_wenheng_binding_receipt_v1",
+        "production_evidence_allowed": True,
+        "source": "fixture",
+        "binding": {
+            "binding_status": "validated_by_b02_task_api",
+            "native": True,
+            "skill_id": "journal_style",
+            "task_type": "journal_style",
+            "wenheng_task_id": "WH-JS-001",
+            "task_folder": "tasks/WH-JS-001",
+            "target_skill": "journal-style",
+            "source_run_id": "RUN-001",
+            "f06_channel_decision": {"verdict": "allow"},
+            "h08_evidence_stub": {"evidence_path": "h08/WH-JS-001.json"},
+            "style_memory": {
+                "source": "G07",
+                "rules_applied": [],
+                "rules_ignored": [],
+                "conflicts": [],
+                "not_applicable_reason": "journal-style 只做期刊画像和投稿匹配分析，不生成正式正文，G07 写作风格规则不适用。",
+            },
+            "style_memory_not_applicable_reason": "journal-style 只做期刊画像和投稿匹配分析，不生成正式正文，G07 写作风格规则不适用。",
+            "h08": {"evidence_required": True, "error_review_required_on_failure": True},
+            "archive": {"required": True},
+            "learning_event_id": None,
+            "production_evidence_allowed": True,
+        },
+    })
+
+
 def add_fulltext_ready_artifacts(task: Path, calibrated: bool = True) -> None:
     pack = make_mu_pack(20)
     write(task / "03-analysis" / "fulltext-layer" / "mu-fulltext-core-pack.json", pack)
@@ -395,7 +441,7 @@ def fx_tampered_artifact(tmp: Path):
 def fx_runner_stops(tmp: Path):
     """RC5: runner blocks fail-closed at step00 on a fresh task, does not skip."""
     task = tmp / "fresh"; task.mkdir()
-    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -407,7 +453,7 @@ def fx_runner_stops(tmp: Path):
 def fx_metadata_mode_reaches_metadata_terminal(tmp: Path):
     """Metadata-only modes must not be blocked by the MinerU/mu fulltext gate."""
     task = make_metadata_ready_task(tmp, "metadata_ok", mode="standard")
-    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -420,7 +466,7 @@ def fx_metadata_mode_reaches_metadata_terminal(tmp: Path):
 def fx_full_mode_requires_mu_pack(tmp: Path):
     """Full mode must still stop at the MinerU/mu fulltext gate when the pack is missing."""
     task = make_metadata_ready_task(tmp, "full_needs_mu", mode="full")
-    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -434,7 +480,7 @@ def fx_full_mode_reaches_handoff_terminal(tmp: Path):
     """A fully satisfied full-mode chain must traverse mu -> per-article -> aggregation -> calibration -> fit -> handoff."""
     task = make_metadata_ready_task(tmp, "full_ok", mode="full")
     add_fulltext_ready_artifacts(task, calibrated=True)
-    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -458,7 +504,7 @@ def fx_uncalibrated_model_blocks_before_fit(tmp: Path):
     """A draft score file cannot make step09_fit reachable when the model is uncalibrated."""
     task = make_metadata_ready_task(tmp, "full_uncalibrated", mode="full")
     add_fulltext_ready_artifacts(task, calibrated=False)
-    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
@@ -468,6 +514,79 @@ def fx_uncalibrated_model_blocks_before_fit(tmp: Path):
     record("uncalibrated_model_blocks_before_fit",
            out.get("current_step") == "step09b_scoring_calibration" and "step09_fit" not in completed,
            proc.stdout[:120] + proc.stderr[:120])
+
+
+def fx_wenheng_runner_requires_native_binding(tmp: Path):
+    task = tmp / "native_missing"; task.mkdir()
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    record("wenheng_runner_requires_native_binding (MUST-FAIL guard)",
+           proc.returncode == 5 and out.get("status") == "NO_GO" and "binding receipt" in out.get("reason", ""),
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_runner_accepts_valid_native_binding(tmp: Path):
+    task = tmp / "native_bound"; task.mkdir()
+    write_native_binding(task)
+    proc = run([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    record("wenheng_runner_accepts_valid_native_binding",
+           proc.returncode == 0 and out.get("wenheng_native_validated") is True and out.get("current_step") == "step00_material_intake",
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_skeleton_requires_native_binding(tmp: Path):
+    task = tmp / "skeleton_missing"
+    proc = run([str(SCRIPTS / "build_task_skeleton.py"), "--task-dir", str(task), "--journal-name", "测试刊"])
+    record("wenheng_skeleton_requires_native_binding (MUST-FAIL guard)",
+           proc.returncode != 0 and "binding receipt" in (proc.stdout + proc.stderr),
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_skeleton_allows_legacy_debug(tmp: Path):
+    task = tmp / "skeleton_legacy"
+    proc = run([str(SCRIPTS / "build_task_skeleton.py"), "--task-dir", str(task), "--journal-name", "测试刊", "--allow-legacy-debug"])
+    state_path = task / "task-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
+    record("wenheng_skeleton_allows_legacy_debug",
+           proc.returncode == 0 and state.get("wenheng_native", {}).get("required") is False,
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_production_ignores_legacy_runner_escape(tmp: Path):
+    task = tmp / "native_prod_runner"; task.mkdir()
+    proc = run_legacy_in_production([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        out = {}
+    record("wenheng_production_ignores_legacy_runner_escape (MUST-FAIL guard)",
+           proc.returncode == 5 and out.get("status") == "NO_GO",
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_production_ignores_legacy_skeleton_escape(tmp: Path):
+    task = tmp / "native_prod_skeleton"
+    proc = run_legacy_in_production([str(SCRIPTS / "build_task_skeleton.py"), "--task-dir", str(task), "--journal-name", "测试刊", "--allow-legacy-debug"])
+    record("wenheng_production_ignores_legacy_skeleton_escape (MUST-FAIL guard)",
+           proc.returncode != 0 and "binding receipt" in (proc.stdout + proc.stderr),
+           proc.stdout[:160] + proc.stderr[:160])
+
+
+def fx_wenheng_startup_without_b02_writes_intake_request(tmp: Path):
+    task = tmp / "startup_missing"
+    proc = run([str(SCRIPTS / "journal-style-startup.py"), "--task-dir", str(task), "--target-journal", "测试刊"])
+    intake = task / "00-intake" / "wenheng-intake-request.json"
+    payload = json.loads(intake.read_text(encoding="utf-8")) if intake.is_file() else {}
+    record("wenheng_startup_without_b02_writes_intake_request",
+           proc.returncode == 2 and payload.get("schema") == "journal_style_wenheng_intake_request_v1" and payload.get("production_evidence_allowed") is False,
+           proc.stdout[:160] + proc.stderr[:160])
 
 
 def fx_material_intake_unblocks(tmp: Path):
@@ -662,7 +781,7 @@ def _build_manifest(skill_copy: Path):
 
 
 def _runner(skill_copy: Path, task: Path):
-    return run([str(skill_copy / "scripts" / "journal_style_runner.py"), "--task-dir", str(task)])
+    return run_legacy([str(skill_copy / "scripts" / "journal_style_runner.py"), "--task-dir", str(task)])
 
 
 def _is_blocked(proc) -> bool:
@@ -827,6 +946,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         for fx in [fx_forged_gate_over_bad_artifact, fx_marker_copy_forgery, fx_tampered_artifact,
+                   fx_wenheng_runner_requires_native_binding, fx_wenheng_runner_accepts_valid_native_binding,
+                   fx_wenheng_skeleton_requires_native_binding, fx_wenheng_skeleton_allows_legacy_debug,
+                   fx_wenheng_production_ignores_legacy_runner_escape,
+                   fx_wenheng_production_ignores_legacy_skeleton_escape,
+                   fx_wenheng_startup_without_b02_writes_intake_request,
                    fx_runner_stops, fx_metadata_mode_reaches_metadata_terminal, fx_full_mode_requires_mu_pack,
                    fx_full_mode_reaches_handoff_terminal, fx_uncalibrated_model_blocks_before_fit,
                    fx_material_intake_unblocks, fx_p4_untraceable,

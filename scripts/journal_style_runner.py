@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -45,6 +46,7 @@ from task_adapter import (
     load_task_adapter,
     validate_task_adapter,
 )
+from wenheng_native import WenhengNativeError, production_required, validate_binding_receipt
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 GATE_RUNNER = SCRIPTS_DIR / "gate_runner.py"
@@ -198,6 +200,18 @@ def main() -> int:
 
     task_dir = args.task_dir.expanduser().resolve()
 
+    try:
+        native_required = production_required() or os.getenv("WENHENG_ALLOW_LEGACY_FLOW") != "1"
+        wenheng_binding = validate_binding_receipt(task_dir, production=native_required)
+    except WenhengNativeError as exc:
+        print(json.dumps({
+            "status": "NO_GO",
+            "reason": str(exc),
+            "required_startup": "scripts/journal-style-startup.py",
+            "intake_request": "00-intake/wenheng-intake-request.json",
+        }, ensure_ascii=False, indent=2))
+        return 5
+
     # Fail-closed release integrity guard: refuse to run if published config or
     # state-machine scripts drift from config/release-manifest.json. This is the
     # core immutability fix: a task window can no longer edit workflow-states.json
@@ -231,6 +245,12 @@ def main() -> int:
         "run_mode": run_mode,
         "demoted_mirrors": ["task-state.json", "wenheng-center-status.json"],
         "release_integrity": integrity,
+        "wenheng_native": {
+            "required": native_required,
+            "validated": bool(wenheng_binding.get("native")),
+            "wenheng_task_id": wenheng_binding.get("wenheng_task_id", ""),
+            "production_evidence_allowed": bool(wenheng_binding.get("production_evidence_allowed")),
+        },
         "applied_overrides": list(overrides.values()),
         "position": position,
         "current_step": position["current_step"],
@@ -250,6 +270,7 @@ def main() -> int:
         "skipped_by_mode": position["skipped_by_mode"],
         "blocked_reason": position["blocked_reason"],
         "applied_overrides": [o["step"] for o in overrides.values()],
+        "wenheng_native_validated": bool(wenheng_binding.get("native")),
     }, ensure_ascii=False, indent=2))
     return 0
 
