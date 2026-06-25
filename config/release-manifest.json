@@ -1,13 +1,13 @@
 {
   "schema": "journal_style_release_manifest_v1",
-  "release_id": "journal-style@0.1.11+b72cac0eb542",
-  "version": "0.1.11",
-  "manifest_generated_from_commit": "b72cac0eb54288da89d7c0ff1202dd6b3f36294a",
-  "generated_at": "2026-06-24T09:12:25.029224Z",
+  "release_id": "journal-style@0.1.12+e155d5d22c08",
+  "version": "0.1.12",
+  "manifest_generated_from_commit": "e155d5d22c081e2a2fca6c20c738c2c377638c5c",
+  "generated_at": "2026-06-25T04:51:42.704267Z",
   "config_sha256": {
     "config/workflow-states.json": "5430c800f04136fe2836db0bc0f1000be844e9f81b86ac46d1308776030f301c",
-    "config/stage-gates.json": "04e4b8b4f259438c9a59cb8f290005abf0135e48fbf9555a5e85ea33261f9cdc",
-    "config/field-policy.json": "e1b895cd7bcb0bce97e0394254a6a75908c12f31ec18c91b7347f1a5a5938081",
+    "config/stage-gates.json": "64bfce8f3d078bda141470b5e3609ebf4ca91a178f27e2cc820e110d95d5d15b",
+    "config/field-policy.json": "a1467733fc012b88ef4b2bc3c9416f392431bf70ff07ba1a71205b14170a1511",
     "config/source-profiles-schema.json": "ca2218495b82b319b151cf9b0b9a77f861fc3c06c29555a06e7defd0b6851afe",
     "config/mu-fulltext-pack-schema.json": "3389b8ee28347d4091d01f9b1bc8ecca8e01bcdab535607aa67df349717eab3f",
     "config/per-article-profile-schema.json": "361ba3b730e97eefc07c1e4c599f0fd8ddbaf47e69d5db46826ece97d45ddf0d",
@@ -17,19 +17,21 @@
   },
   "script_sha256": {
     "scripts/journal_style_runner.py": "daf203e5284e4696d3aa392f35c4390222008a3166be9f696c4f4ee00df3b981",
-    "scripts/gate_runner.py": "3e66c3a148edb6db673d04cea2175378abdb9af3d7ae88fa6fed95d91083d2e1",
+    "scripts/gate_runner.py": "9fce165d527d68213358574e01d7bb92cf922052fcde33fa897988e8aa015bd5",
     "scripts/journal_style_resume.py": "4306b92cd00e3c073218c7a230bb8b404e25f4943045fc57b917f0534c64c8e2",
-    "scripts/journal_style_runtime.py": "b9989ff7ed14aeee6322106f901ead0f3cfc600477983f5886e91ff7a0565996",
+    "scripts/journal_style_runtime.py": "a54bc8623929d61a55a6a33b74f66715301db61deba860aac00ee3e239605568",
     "scripts/wenheng_native.py": "898fcdf2c77940adc7fd7e58bbf53c81a754733004ad9beba9ea7f97114b7d94",
     "scripts/journal-style-startup.py": "7d6a9637a433d3186961f27ae0626ddbd8b168aa996086f4e84ae2c3d41657ae",
     "scripts/build_task_skeleton.py": "eb706befad127208328c94f299f482228ed83c3fff4e4d5d07389125e1e4221b",
-    "scripts/run_stage_gates.py": "60a37157b21c3a9444a10816e2c24c3795efa055f3661330e81c0e417637dfed",
+    "scripts/run_stage_gates.py": "797dbd19202d51e789e512f5ce0c10ce7bcb9d32fe37adcdb859cdf2fa0e2964",
     "scripts/task_adapter.py": "023af179b06c446e615b282d8ab997b66fbf87a683d7a8b05b86a997d0bb496b",
     "scripts/analyze_per_article_style.py": "e971bd027befcd25a65147cb582fade93c8129a63e1cc56b8fa9ba2f39c21df3",
     "scripts/aggregate_journal_style.py": "6ef65f9ce18aac9722992bda98dd8f23fddd65371b4d637b8e2279c23a8ba9a6",
     "scripts/export_polish_consumption_pack.py": "da8bf474e4d2476a2df08bb1f85f7956a568bfe2b12775d2f010d3955c59a5b9",
     "scripts/calibrate_fit_scoring.py": "03d2550bbc1122014a2ca546ff8f94b80472498bb45df185d8b4bfa28f78ce0b",
-    "scripts/score_user_manuscript.py": "3411413c98825e47b8261ea87b11196ef528346b76e791f2d414b364db968e8c"
+    "scripts/score_user_manuscript.py": "3411413c98825e47b8261ea87b11196ef528346b76e791f2d414b364db968e8c",
+    "scripts/build_jiansuo_sidecar_manifest.py": "d721a219971f2f256f84731c3d51de38cb6955be3c582ec2930e9021c68a1e33",
+    "scripts/build_journal_style_rag_seed_plan.py": "cadae3afac005d11cfe9e87af338e43a73fa8e6e764110a7893b49af29628929"
   },
   "mode_policy": {
     "git": {
