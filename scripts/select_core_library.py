@@ -21,6 +21,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-ratio", type=float, default=0.30)
     parser.add_argument("--min-ratio", type=float, default=0.25)
     parser.add_argument("--max-ratio", type=float, default=0.40)
+    parser.add_argument("--sidecar-manifest", default="", help="Optional 0.2.11 sidecar manifest for role/fulltext tags.")
+    parser.add_argument("--source-role-register", default="", help="Optional raw source-role-register.json.")
     return parser.parse_args()
 
 
@@ -50,6 +52,147 @@ def truthy(row: dict[str, Any], *keys: str) -> bool:
 
 def bounded(value: float) -> float:
     return max(0.0, min(1.0, value))
+
+
+def normalized(value: Any) -> str:
+    return "".join(str(value or "").lower().split())
+
+
+def list_records(data: Any) -> list[dict[str, Any]]:
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if not isinstance(data, dict):
+        return []
+    for key in ("sources", "items", "records", "rows", "entries"):
+        value = data.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def as_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item)]
+    return [str(value)] if str(value) else []
+
+
+def load_json_if_present(path_text: str) -> Any:
+    if not path_text:
+        return None
+    path = Path(path_text).expanduser()
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_sidecar_context(sidecar_manifest: str, source_role_register: str) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "roles_by_title": {},
+        "roles_by_id": {},
+        "fulltext_titles": set(),
+        "fulltext_ids": set(),
+        "active": False,
+        "sources": [],
+    }
+    manifest = load_json_if_present(sidecar_manifest)
+    if isinstance(manifest, dict):
+        summary = manifest.get("source_role_summary") or {}
+        for row in summary.get("sources") or []:
+            add_role_record(context, row)
+        fulltext_index = manifest.get("fulltext_index") or {}
+        for item in fulltext_index.get("items") or []:
+            if item.get("fulltext_missing"):
+                continue
+            title_key = normalized(item.get("title") or item.get("manifest_title"))
+            if title_key:
+                context["fulltext_titles"].add(title_key)
+            for key in ("stable_id", "source_id"):
+                ident = normalized(item.get(key))
+                if ident:
+                    context["fulltext_ids"].add(ident)
+    raw_register = load_json_if_present(source_role_register)
+    for row in list_records(raw_register):
+        add_role_record(context, row)
+    context["active"] = bool(context["roles_by_title"] or context["roles_by_id"] or context["fulltext_titles"] or context["fulltext_ids"])
+    return context
+
+
+def add_role_record(context: dict[str, Any], row: dict[str, Any]) -> None:
+    roles = as_list(row.get("roles") or row.get("consumption_role") or row.get("source_role") or row.get("role"))
+    tags = as_list(row.get("tags")) + as_list(row.get("bucket_tags")) + as_list(row.get("role_tags")) + roles
+    record = {
+        "source_id": str(row.get("source_id") or ""),
+        "stable_id": str(row.get("stable_id") or row.get("source_id") or ""),
+        "title": str(row.get("title") or ""),
+        "roles": roles,
+        "tags": sorted(set(tags)),
+        "priority": row.get("priority"),
+        "gap_id": str(row.get("gap_id") or ""),
+        "source_need": str(row.get("source_need") or ""),
+    }
+    if record["title"]:
+        context["roles_by_title"][normalized(record["title"])] = record
+    for key in ("source_id", "stable_id"):
+        ident = normalized(record.get(key))
+        if ident:
+            context["roles_by_id"][ident] = record
+    context["sources"].append(record)
+
+
+def sidecar_match(row: dict[str, Any], context: dict[str, Any]) -> tuple[dict[str, Any] | None, bool]:
+    title_key = normalized(row.get("title"))
+    ids = [normalized(row.get(key)) for key in ("item_key", "source_id", "stable_id", "record_id")]
+    record = context["roles_by_title"].get(title_key)
+    if record is None:
+        record = next((context["roles_by_id"].get(ident) for ident in ids if ident in context["roles_by_id"]), None)
+    fulltext_available = title_key in context["fulltext_titles"] or any(ident in context["fulltext_ids"] for ident in ids)
+    return record, fulltext_available
+
+
+def apply_sidecar_context(
+    row: dict[str, Any],
+    scores: dict[str, float],
+    tags: list[str],
+    context: dict[str, Any],
+) -> tuple[dict[str, float], list[str], dict[str, Any] | None]:
+    if not context.get("active"):
+        return scores, tags, None
+    record, fulltext_available = sidecar_match(row, context)
+    evidence: dict[str, Any] = {}
+    sidecar_tags: set[str] = set()
+    boost = 0.0
+    if record:
+        role_tags = set(as_list(record.get("tags")) + as_list(record.get("roles")))
+        sidecar_tags.update(f"source_role:{tag}" for tag in sorted(role_tags) if tag)
+        if role_tags.intersection({"same_journal", "same_column", "same_topic", "target_journal_ecosystem"}):
+            boost += 0.03
+        evidence = {
+            "source_id": record.get("source_id"),
+            "stable_id": record.get("stable_id"),
+            "roles": record.get("roles") or [],
+            "tags": record.get("tags") or [],
+            "gap_id": record.get("gap_id") or "",
+            "source_need": record.get("source_need") or "",
+        }
+    if fulltext_available:
+        boost += 0.02
+        sidecar_tags.add("sidecar_fulltext_index_available")
+    if not evidence and not fulltext_available:
+        return scores, tags, None
+    updated_scores = dict(scores)
+    if boost:
+        updated_scores["sidecar_role_boost"] = round(boost, 4)
+        updated_scores["total"] = round(bounded(float(updated_scores["total"]) + boost), 4)
+    updated_tags = list(tags)
+    for tag in sorted(sidecar_tags):
+        if tag not in updated_tags:
+            updated_tags.append(tag)
+    evidence["fulltext_index_available"] = fulltext_available
+    evidence["sidecar_role_boost"] = round(boost, 4)
+    evidence["evidence_layer"] = "metadata_only"
+    return updated_scores, updated_tags, evidence
 
 
 def score_row(row: dict[str, Any], topic_terms: list[str], years: set[str], sections: set[str]) -> tuple[dict[str, float], list[str]]:
@@ -131,28 +274,37 @@ def main() -> int:
     selected_count = max(min_count, min(selected_count, max_count))
     years = {str(row.get("year") or "") for row in rows if row.get("year")}
     sections = {str(row.get("section") or row.get("column") or "") for row in rows if row.get("section") or row.get("column")}
+    sidecar_context = load_sidecar_context(args.sidecar_manifest, args.source_role_register)
 
     scored = []
     for index, row in enumerate(rows):
         scores, tags = score_row(row, topic_terms, years, sections)
-        scored.append((scores["total"], index, row, scores, tags))
+        scores, tags, sidecar_evidence = apply_sidecar_context(row, scores, tags, sidecar_context)
+        scored.append((scores["total"], index, row, scores, tags, sidecar_evidence))
     scored.sort(key=lambda item: (-item[0], item[1]))
     selected_rows = scored[:selected_count]
     rejected_rows = scored[selected_count:]
 
     selected = []
-    for rank, (_, _, row, scores, tags) in enumerate(selected_rows, 1):
+    for rank, (_, _, row, scores, tags, sidecar_evidence) in enumerate(selected_rows, 1):
         entry = redacted(row)
         entry.update({"rank": rank, "selected": True, "scores": scores, "total": scores["total"], "coverage_tags": tags})
+        if sidecar_evidence:
+            entry["source_role_tags"] = [tag for tag in tags if tag.startswith("source_role:")]
+            entry["sidecar_role_evidence"] = sidecar_evidence
         selected.append(entry)
     rejected = []
-    for _, _, row, scores, _ in rejected_rows:
+    for _, _, row, scores, tags, sidecar_evidence in rejected_rows:
         entry = redacted(row)
         if scores["fulltext_availability"] < 0.5 and scores["topic_similarity"] >= 0.8:
             reason = "pending_fulltext_only_candidate"
         else:
             reason = "below_core_library_threshold"
         entry.update({"selected": False, "scores": scores, "total": scores["total"], "reason": reason})
+        if sidecar_evidence:
+            entry["coverage_tags"] = tags
+            entry["source_role_tags"] = [tag for tag in tags if tag.startswith("source_role:")]
+            entry["sidecar_role_evidence"] = sidecar_evidence
         rejected.append(entry)
 
     ratio = round(len(selected) / total, 4)
@@ -166,9 +318,15 @@ def main() -> int:
         "selected": selected,
         "rejected": rejected,
         "verdict": verdict,
+        "sidecar_context": {
+            "active": bool(sidecar_context.get("active")),
+            "source": "best_effort_optional",
+            "rule": "source-role sidecar only adds metadata tags and small boosts; it does not change the 25%-40% core-library gate or create fulltext style evidence.",
+        },
         "redaction": "Only metadata scores and redacted identifiers are written; no fulltext, PDF content, RAG chunks, vector data, Zotero DB, keys, tokens, or cookies.",
     }
     output_json = Path(args.output_json)
+    output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     if args.output_md:
         write_md(Path(args.output_md), payload)

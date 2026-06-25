@@ -50,3 +50,10 @@
 
 落选原因必须明确。高相关但缺全文的文章不能被静默丢弃，应进入 `pending_fulltext_only_candidate`。
 
+## Sidecar 增强
+
+当存在 `source-role-register.json` 或 sidecar manifest 时，可额外写入 `source_role_tags`、`sidecar_role_evidence` 和 `sidecar_context`，但只允许：
+
+- 对 `same_journal` / `same_column` / `same_topic` / `target_journal_ecosystem` 做小幅 metadata 增益
+- 对 `theory_anchor` / `comparison_material` / `primary_source` 仅打标签，不改变 25%-40% gate
+- 缺失 sidecar 时完全回退旧逻辑

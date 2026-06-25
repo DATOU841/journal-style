@@ -70,3 +70,9 @@
 - 样本召回
 - 数据来源
 - 失败原因
+
+## 6. 0.2.11 sidecar 说明
+
+`02-kb-builder/zotero-reference-full-bibliography.md`、`025-rag-import/fulltext/fulltext-index.json`、`025-rag-import/fulltext/<stable-id>/manifest.json`、`025-rag-import/mineru-job-ledger.jsonl`、`026-knowledge-workbench/downstream-consumption-manifest.json`、`026-knowledge-workbench/source-role-register.json`、`026-knowledge-workbench/rag-query-seed-pack.json`、`026-knowledge-workbench/gap-ledger.json` 与 `026-knowledge-workbench/sources/*.md` 都属于可选增强输入。
+
+缺失时不得阻断 journal-style 主流程。`full_md_path` 只作指针，`full.md` 正文不得被 journal-style 默认打开。

@@ -52,7 +52,7 @@ def main() -> int:
         return 3
 
     input_path = args.input.expanduser().resolve()
-    if not input_path.exists():
+    if not input_path.exists() and args.gate != "jiansuo-sidecar-safety":
         verdict = {
             "gate": args.gate,
             "verdict": "NO_GO",

@@ -357,3 +357,64 @@
 ### Notes
 - `/Users/a13497/.codex/skills/journal-style/progress.md`: appended this post-tag release publication record only; the `v0.1.11` tag remains on the release manifest commit and is not moved.
 - Rollback: revert the post-tag progress-record commit if only this audit note should be withdrawn. To roll back the published release itself, do not move `v0.1.11`; publish a corrective commit and follow-up version/tag or explicitly delete the remote tag under release-owner approval.
+
+## 2026-06-25 - Task: journal-style 0.1.12 sidecar adaptation planning
+### What was done
+- Completed development-prep planning for adapting journal-style to `检索入库 0.2.11` post-2.5 sidecar artifacts.
+- Wrote a minimal implementation plan covering optional sidecar discovery, safe metadata-only consumption, fallback to legacy handoff files, verification fixtures, rollback, and explicit non-goals.
+- Kept the plan within planning scope: no source code changes, no formal journal-style task, no CNKI/WoS/Zotero/PDF/MinerU/RAG/server operation, no commit, no tag, no push, and no release.
+### Testing
+- Confirmed the plan file first line is `STATUS: PLAN_READY`.
+- Confirmed the plan file has the required sections for files to change, validation method, rollback method, and non-goals.
+- No runtime tests were run because this was a development-prep planning task only.
+### Notes
+- `/Users/a13497/.codex/skills/journal-style/.handoff/claude/0.1.12-journal-style-sidecar-adaptation-plan.md`: added the sidecar adaptation development plan.
+- `/Users/a13497/.codex/skills/journal-style/progress.md`: appended this planning record.
+- Rollback: delete `/Users/a13497/.codex/skills/journal-style/.handoff/claude/0.1.12-journal-style-sidecar-adaptation-plan.md` and remove this progress entry; no source code, config, schema, runtime, server bundle, tag, or release state needs rollback.
+
+## 2026-06-25 - Task: journal-style 0.1.12 sidecar adaptation implementation
+### What was done
+- Implemented best-effort journal-style consumption of `检索入库 0.2.11` sidecar artifacts with metadata-only safety, optional discovery, and legacy fallback behavior.
+- Added safe sidecar manifest generation and a planning-only RAG seed pack so journal-style can read source roles, bibliography scope, fulltext pointers, and gaps without opening `full.md` bodies.
+- Wired sidecar context into core library selection as a small metadata boost only, kept the 25%-40% gate intact, and preserved the no-fulltext/no-RAG boundary.
+- Tightened gate handling so missing sidecar inputs pass cleanly, forbidden payloads still fail closed, and count-style summary keys are not misclassified as content leaks.
+- Updated the skill docs, release metadata, and validation fixtures so the sidecar path is explicit and locally testable.
+### Testing
+- `python3 tests/run_sidecar_adaptation_fixtures.py`: passed, 6/6 fixtures.
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 -m py_compile scripts/*.py tests/*.py`: passed.
+- JSON validation for `config/*.json` and `templates/*.json`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+- Checked `/Users/a13497/.codex/skills/journal-style` for `__pycache__` / `.pyc` residue after validation cleanup: none found.
+### Notes
+- `/Users/a13497/.codex/skills/journal-style/README.md`: bumped public version metadata to `0.1.12`.
+- `/Users/a13497/.codex/skills/journal-style/SKILL.md`: documented sidecar best-effort capability and clarified current capability scope.
+- `/Users/a13497/.codex/skills/journal-style/VERSION`: set the skill version to `0.1.12`.
+- `/Users/a13497/.codex/skills/journal-style/config/field-policy.json`: added sidecar leak-guard keys for fulltext, body, vector, and credential-like payloads.
+- `/Users/a13497/.codex/skills/journal-style/config/release-manifest.json`: re-signed integrity hashes after the implementation changes.
+- `/Users/a13497/.codex/skills/journal-style/config/stage-gates.json`: added the `jiansuo-sidecar-safety` gate configuration.
+- `/Users/a13497/.codex/skills/journal-style/docs/public-introduction.zh.md`: aligned the public intro version metadata with `0.1.12`.
+- `/Users/a13497/.codex/skills/journal-style/docs/wenheng-native-protocol.md`: recorded the sidecar-aware Wenheng boundary wording.
+- `/Users/a13497/.codex/skills/journal-style/references/core-library-selection-protocol.md`: described how sidecar context may boost metadata-only selection without changing the hard gate.
+- `/Users/a13497/.codex/skills/journal-style/references/evidence-rules.md`: added evidence-layer guidance for optional sidecar inputs.
+- `/Users/a13497/.codex/skills/journal-style/references/fulltext-article-pattern-mining-protocol.md`: clarified that sidecar pointers are not fulltext body consumption.
+- `/Users/a13497/.codex/skills/journal-style/references/handoff-from-jiansuo-ruku.md`: added the sidecar-adaptation handoff expectations for incoming assets.
+- `/Users/a13497/.codex/skills/journal-style/references/handoff-to-jiansuo-ruku.md`: updated the return path so gaps and role evidence stay declarative.
+- `/Users/a13497/.codex/skills/journal-style/references/output-schema.md`: moved sidecar-derived outputs into an optional enhancement subsection.
+- `/Users/a13497/.codex/skills/journal-style/references/secret-boundary-protocol.md`: aligned the boundary language with the sidecar-safe intake rule.
+- `/Users/a13497/.codex/skills/journal-style/references/jiansuo-sidecar-consumption-protocol.md`: added the new sidecar consumption protocol.
+- `/Users/a13497/.codex/skills/journal-style/scripts/build_material_intake_manifest.py`: marked sidecar assets as optional intake inputs and kept them out of hard gaps.
+- `/Users/a13497/.codex/skills/journal-style/scripts/build_jiansuo_sidecar_manifest.py`: generated the safe metadata-only sidecar manifest and derived summary files.
+- `/Users/a13497/.codex/skills/journal-style/scripts/build_journal_style_rag_seed_plan.py`: generated a planning-only RAG seed pack with `executed=false`.
+- `/Users/a13497/.codex/skills/journal-style/scripts/gate_runner.py`: allowed the optional sidecar gate to pass cleanly when the manifest is absent.
+- `/Users/a13497/.codex/skills/journal-style/scripts/journal_style_runtime.py`: registered the new sidecar scripts and gate ID for release tracking.
+- `/Users/a13497/.codex/skills/journal-style/scripts/run_stage_gates.py`: added the `jiansuo-sidecar-safety` gate and exempted count namespaces from false-positive leak matches.
+- `/Users/a13497/.codex/skills/journal-style/scripts/select_core_library.py`: accepted optional sidecar context, added safe role evidence, and created the output directory before writing.
+- `/Users/a13497/.codex/skills/journal-style/tests/run_sidecar_adaptation_fixtures.py`: added synthetic fixtures for missing sidecar, safe manifest, leak rejection, seed planning, core-library boosting, and bibliography scope coverage.
+- `/Users/a13497/.codex/skills/journal-style/.handoff/claude/0.1.12-journal-style-sidecar-adaptation-plan.md`: retained the development plan file for downstream review.
+- Rollback: revert the files above, delete the sidecar plan file if needed, and rebuild `config/release-manifest.json` afterward; do not move tags or publish anything from this working tree.

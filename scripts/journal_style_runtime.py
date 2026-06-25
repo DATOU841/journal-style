@@ -55,6 +55,8 @@ MANIFEST_TRACKED_SCRIPTS = [
     "scripts/export_polish_consumption_pack.py",
     "scripts/calibrate_fit_scoring.py",
     "scripts/score_user_manuscript.py",
+    "scripts/build_jiansuo_sidecar_manifest.py",
+    "scripts/build_journal_style_rag_seed_plan.py",
 ]
 
 OVERRIDE_ALLOWED_STEPS = {
@@ -282,6 +284,7 @@ GATE_ID_MAP = {
     "provenance-required": "provenance-required",
     "scoring-replay-calibrated": "scoring-replay-calibrated",
     "submission-fit-ready": "submission-fit-ready",
+    "jiansuo-sidecar-safety": "jiansuo-sidecar-safety",
 }
 
 

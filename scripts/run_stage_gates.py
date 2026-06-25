@@ -68,6 +68,17 @@ def _cfg(path, default):
             return default
     return cur
 
+
+SIDECAR_ALLOWED_POINTER_KEYS = {
+    str(key).lower()
+    for key in _cfg("gates.jiansuo-sidecar-safety.allowed_pointer_fields", ["full_md_path"])
+}
+SIDECAR_FORBIDDEN_CONTENT_KEYS = {
+    str(key).lower()
+    for key in _cfg("gates.jiansuo-sidecar-safety.forbidden_content_keys", [])
+}
+SIDECAR_FORBIDDEN_KEYS = (FORBIDDEN_METADATA_KEYS | SIDECAR_FORBIDDEN_CONTENT_KEYS) - SIDECAR_ALLOWED_POINTER_KEYS
+
 # FULLTEXT_READY thresholds
 FT_SAMPLE_MIN = _cfg("gates.no-metadata-only-completion.fulltext_ready_requires.fulltext_sample_count_min", 20)
 FT_RAG_MIN = _cfg("gates.no-metadata-only-completion.fulltext_ready_requires.rag_available_rate_min", 0.5)
@@ -228,6 +239,62 @@ def gate_secret_boundary(path: Path) -> dict:
         problems,
         [],
         {"input": str(path), "secret_pattern_hits": len(problems)},
+    )
+
+
+def _scan_sidecar_safety(obj, where: str, problems: list[str]) -> None:
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            key_text = str(key)
+            key_lc = key_text.lower()
+            child = f"{where}.{key_text}"
+            if key_lc in SIDECAR_FORBIDDEN_KEYS and not re.search(r"(?:^|\.)[^.]+_counts$", where):
+                problems.append(f"{child}: forbidden sidecar key")
+            _scan_sidecar_safety(value, child, problems)
+    elif isinstance(obj, list):
+        for index, item in enumerate(obj):
+            _scan_sidecar_safety(item, f"{where}[{index}]", problems)
+    elif isinstance(obj, str):
+        for pattern in SECRET_PATTERNS:
+            if pattern.search(obj):
+                problems.append(f"{where}: secret-like value matched {pattern.pattern}")
+                break
+
+
+def gate_jiansuo_sidecar_safety(path: Path) -> dict:
+    problems: list[str] = []
+    warnings: list[str] = []
+    details = {
+        "input": str(path),
+        "missing_sidecar_is_pass": bool(_cfg("gates.jiansuo-sidecar-safety.missing_sidecar_is_pass", True)),
+        "allowed_pointer_fields": sorted(SIDECAR_ALLOWED_POINTER_KEYS),
+    }
+    if not path.exists():
+        warnings.append("jiansuo sidecar manifest absent; optional enhancement skipped")
+        return result("jiansuo-sidecar-safety", PASS, problems, warnings, details)
+    data = load_json(path)
+    _scan_sidecar_safety(data, "$", problems)
+    safety = data.get("safety") if isinstance(data, dict) else {}
+    if isinstance(safety, dict):
+        for problem in safety.get("problems") or []:
+            problems.append(f"manifest safety problem: {problem}")
+        for key in ("contains_fulltext_body", "contains_rag_chunks", "contains_vectors", "contains_secrets"):
+            if safety.get(key):
+                problems.append(f"manifest safety flag true: {key}")
+        details.update({
+            "manifest_safety_problem_count": len(safety.get("problems") or []),
+            "full_md_files_opened": int(safety.get("full_md_files_opened") or 0),
+            "full_md_pointers_recorded": int(safety.get("full_md_pointers_recorded") or 0),
+        })
+    if isinstance(data, dict) and data.get("schema") != "journal_style_jiansuo_sidecar_manifest_v1":
+        warnings.append(f"unexpected sidecar manifest schema: {data.get('schema')}")
+    details["problem_count"] = len(problems)
+    return result(
+        "jiansuo-sidecar-safety",
+        NO_GO if problems else PASS,
+        problems,
+        warnings,
+        details,
     )
 
 
@@ -873,6 +940,7 @@ def main() -> int:
             "core-library",
             "fulltext-claims",
             "material-intake",
+            "jiansuo-sidecar-safety",
             "dimension-evidence",
             "mu-fulltext-pack",
             "per-article-profile-complete",
@@ -916,6 +984,7 @@ def main() -> int:
         "core-library": gate_core_library,
         "fulltext-claims": gate_fulltext_claims,
         "material-intake": gate_material_intake,
+        "jiansuo-sidecar-safety": gate_jiansuo_sidecar_safety,
         "dimension-evidence": gate_dimension_evidence,
         "mu-fulltext-pack": gate_mu_fulltext_pack,
         "per-article-profile-complete": gate_per_article_profile_complete,

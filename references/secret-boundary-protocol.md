@@ -9,7 +9,8 @@
 - 不得使用 `--api-key=<value>` 或等价命令行参数传递密钥。
 - 密钥只能通过受控环境变量或服务器 secret 文件加载。
 - evidence 只记录 secret 的存在性、用途、权限和路径，不记录值。
-- `journal-style` 不读取、不导出、不解析 Zotero DB、浏览器 profile、cookie、token、RAG chunk、vector dump。
+- `journal-style` 不读取、不导出、不解析 Zotero DB、浏览器 profile、cookie、token、RAG chunk、vector dump、`full.md` 正文或带签名的 `full_zip_url`。
+- `full_md_path` 只可作为相对指针，不可据此打开正文。
 
 ## Gate
 

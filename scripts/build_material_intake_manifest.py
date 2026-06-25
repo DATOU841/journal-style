@@ -35,6 +35,17 @@ CANDIDATE_ASSETS = [
     ("official_identity", "00-official/journal-identity-confirmation.md"),
 ]
 
+OPTIONAL_CANDIDATE_ASSETS = [
+    ("jiansuo_sidecar_manifest", "00-intake/jiansuo-sidecar-manifest.json"),
+    ("zotero_reference_full_bibliography", "02-kb-builder/zotero-reference-full-bibliography.md"),
+    ("fulltext_index", "025-rag-import/fulltext/fulltext-index.json"),
+    ("mineru_job_ledger", "025-rag-import/mineru-job-ledger.jsonl"),
+    ("downstream_consumption_manifest", "026-knowledge-workbench/downstream-consumption-manifest.json"),
+    ("source_role_register", "026-knowledge-workbench/source-role-register.json"),
+    ("rag_query_seed_pack", "026-knowledge-workbench/rag-query-seed-pack.json"),
+    ("gap_ledger", "026-knowledge-workbench/gap-ledger.json"),
+]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the Step-0 material-intake manifest.")
@@ -55,6 +66,7 @@ def main() -> int:
 
     registered = {}
     gaps = []
+    optional_gaps = []
     for name, rel in assets:
         path = task_dir / rel
         if path.exists():
@@ -66,6 +78,18 @@ def main() -> int:
             }
         else:
             gaps.append({"asset": name, "rel_path": rel})
+    for name, rel in OPTIONAL_CANDIDATE_ASSETS:
+        path = task_dir / rel
+        if path.exists():
+            registered[name] = {
+                "rel_path": rel,
+                "abs_path": str(path),
+                "sha256": sha256_artifact(path),
+                "is_dir": path.is_dir(),
+                "optional": True,
+            }
+        else:
+            optional_gaps.append({"asset": name, "rel_path": rel, "optional": True})
 
     manifest = {
         "schema": "journal_style_material_intake_manifest_v1",
@@ -75,6 +99,8 @@ def main() -> int:
         "registered_count": len(registered),
         "gaps": gaps,
         "gap_count": len(gaps),
+        "optional_gaps": optional_gaps,
+        "optional_gap_count": len(optional_gaps),
         "_rule": "Later steps may only consume registered assets. source_profiles provenance must trace back here (P4).",
     }
     out_dir = task_dir / "00-intake"

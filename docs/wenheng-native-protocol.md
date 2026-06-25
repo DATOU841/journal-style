@@ -41,3 +41,7 @@ identity confirmed、title corpus ready、RAG/sample status、fit score ready、
 ## 数据边界
 
 不得把真实全文、PDF 内容、RAG chunk、Zotero 底层数据、绝对路径、cookie、token、key 或完整 prompt 写入文衡。只写脱敏摘要、计数、证据强度、风险、相对 task folder 引用和 next action。
+
+## Sidecar 接口
+
+检索入库 0.2.11 的 sidecar 只作为可选增强输入使用。文衡侧与 journal-style 只接收安全摘要、角色登记、查询种子计划、全文可用性指针和缺口账本，不接收 `full.md` 正文、RAG chunk、向量、Zotero DB 或带签名的下载 URL。

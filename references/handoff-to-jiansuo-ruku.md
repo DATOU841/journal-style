@@ -33,6 +33,11 @@
     "min_mu_fulltext_ready_rate": 0.8
   },
   "secret_policy": "env_only_no_process_arg_key",
+  "sidecar_gap_ids": [],
+  "role_register_gaps": [],
+  "rag_seed_plan_path": "",
+  "fulltext_index_gap_summary": "",
+  "bibliography_scope_gap_summary": "",
   "notes": ""
 }
 ```
@@ -102,3 +107,4 @@
 - `notes` 为建议字段，能帮助注释体例分析；若上游无法稳定抽取，应在交接中标明缺口，不得用普通 RAG 片段替代。
 - 普通 RAG 片段不得作为 MinerU/mu 完整全文包的替代品。
 - 密钥必须通过环境变量或服务器受控 secret 文件加载，不得通过进程参数传递。
+- sidecar 补采请求只生成请求，不执行检索入库；缺失 sidecar 不得阻断主流程。

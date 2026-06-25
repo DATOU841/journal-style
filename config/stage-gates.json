@@ -75,6 +75,32 @@
       "fail_closed": true,
       "field_policy_ref": "config/field-policy.json"
     },
+    "jiansuo-sidecar-safety": {
+      "fail_closed_on_leakage": true,
+      "missing_sidecar_is_pass": true,
+      "field_policy_ref": "config/field-policy.json",
+      "allowed_pointer_fields": [
+        "full_md_path"
+      ],
+      "forbidden_content_keys": [
+        "full_md",
+        "full_md_content",
+        "full_md_text",
+        "mu_fulltext",
+        "fulltext_body",
+        "chunk_text",
+        "rag_chunk",
+        "vector",
+        "embedding",
+        "embedding_raw",
+        "paragraph",
+        "sentence",
+        "copyable_text",
+        "正文",
+        "full_zip_url"
+      ],
+      "rule": "检索入库 0.2.11 sidecar 缺失不阻断；一旦 sidecar 派生产物内联 full.md 正文、RAG chunk、vector、secret 或 full_zip_url，则 NO_GO。full_md_path 只允许作为相对指针。"
+    },
     "mu-fulltext-pack": {
       "fail_closed": true,
       "processor": "MinerU/mu",
