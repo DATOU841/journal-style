@@ -1,9 +1,9 @@
 {
   "schema": "journal_style_release_manifest_v1",
-  "release_id": "journal-style@0.1.12+e155d5d22c08",
-  "version": "0.1.12",
-  "manifest_generated_from_commit": "e155d5d22c081e2a2fca6c20c738c2c377638c5c",
-  "generated_at": "2026-06-25T04:51:42.704267Z",
+  "release_id": "journal-style@0.1.13+832b158becab",
+  "version": "0.1.13",
+  "manifest_generated_from_commit": "832b158becabf1f9ab5e72e99ed2c8586b904e94",
+  "generated_at": "2026-06-28T15:57:57.559346Z",
   "config_sha256": {
     "config/workflow-states.json": "5430c800f04136fe2836db0bc0f1000be844e9f81b86ac46d1308776030f301c",
     "config/stage-gates.json": "64bfce8f3d078bda141470b5e3609ebf4ca91a178f27e2cc820e110d95d5d15b",
@@ -13,13 +13,14 @@
     "config/per-article-profile-schema.json": "361ba3b730e97eefc07c1e4c599f0fd8ddbaf47e69d5db46826ece97d45ddf0d",
     "config/aggregation-schema.json": "4c30bafd3aa90d91a0dc2013b0c38dfe9ca592de05d5469244ec67135bb048c6",
     "config/journal-polish-consumption-pack-schema.json": "4c5e742b24d0927e07d6296f26009010d79b35fad9f0cdb90ac6f7662e02a6f7",
+    "config/review-memory-pack-schema.json": "b06e34a9fde6ec5c80fb04297b5dd6e6ee630c59c7d4e3cf8a68a52b4ba42717",
     "config/scoring-model-schema.json": "3f98ec0a5244ce6cc1c0ed3756257802d04cc23c7a1c4525033d05e1f1b4dfa5"
   },
   "script_sha256": {
     "scripts/journal_style_runner.py": "daf203e5284e4696d3aa392f35c4390222008a3166be9f696c4f4ee00df3b981",
     "scripts/gate_runner.py": "9fce165d527d68213358574e01d7bb92cf922052fcde33fa897988e8aa015bd5",
     "scripts/journal_style_resume.py": "4306b92cd00e3c073218c7a230bb8b404e25f4943045fc57b917f0534c64c8e2",
-    "scripts/journal_style_runtime.py": "a54bc8623929d61a55a6a33b74f66715301db61deba860aac00ee3e239605568",
+    "scripts/journal_style_runtime.py": "4759cb21780def8d73849565382dab47137030474406040fa9094b51aaedf3d9",
     "scripts/wenheng_native.py": "898fcdf2c77940adc7fd7e58bbf53c81a754733004ad9beba9ea7f97114b7d94",
     "scripts/journal-style-startup.py": "7d6a9637a433d3186961f27ae0626ddbd8b168aa996086f4e84ae2c3d41657ae",
     "scripts/build_task_skeleton.py": "eb706befad127208328c94f299f482228ed83c3fff4e4d5d07389125e1e4221b",
@@ -28,6 +29,7 @@
     "scripts/analyze_per_article_style.py": "e971bd027befcd25a65147cb582fade93c8129a63e1cc56b8fa9ba2f39c21df3",
     "scripts/aggregate_journal_style.py": "6ef65f9ce18aac9722992bda98dd8f23fddd65371b4d637b8e2279c23a8ba9a6",
     "scripts/export_polish_consumption_pack.py": "da8bf474e4d2476a2df08bb1f85f7956a568bfe2b12775d2f010d3955c59a5b9",
+    "scripts/export_review_memory_pack.py": "d2ff105ef2743241c1dfc646916885887c0d78960bf18582ebad013af2ee2311",
     "scripts/calibrate_fit_scoring.py": "03d2550bbc1122014a2ca546ff8f94b80472498bb45df185d8b4bfa28f78ce0b",
     "scripts/score_user_manuscript.py": "3411413c98825e47b8261ea87b11196ef528346b76e791f2d414b364db968e8c",
     "scripts/build_jiansuo_sidecar_manifest.py": "d721a219971f2f256f84731c3d51de38cb6955be3c582ec2930e9021c68a1e33",
