@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
+SKILL = ROOT
 
 
 def parse_args() -> argparse.Namespace:
@@ -173,6 +174,51 @@ def build_fulltext_rows() -> list[dict]:
     return rows
 
 
+def build_review_memory_fixture(root: Path) -> tuple[Path, Path]:
+    journal_dir = root / "03-期刊适配"
+    lesion_dir = root / "02-高危病灶库"
+    journal_dir.mkdir(parents=True, exist_ok=True)
+    lesion_dir.mkdir(parents=True, exist_ok=True)
+    journal_note = journal_dir / "测试刊-投稿要求.md"
+    lesion_note = lesion_dir / "AI腔替换策略.md"
+    journal_note.write_text(
+        """---
+review_memory: true
+target_journal: "测试刊"
+length_band: {"min": 9000, "max": 14000}
+abstract: "避免流程宣告，直接给研究判断。"
+keyword_count: {"min": 3, "max": 5}
+notes_convention: "脚注"
+reference_convention: "GB/T 7714"
+theory_density: "medium"
+review_density: "low"
+most_avoided_tone: ["流程腔", "功能宣告句"]
+section_rhythm: ["问题-材料-判断"]
+intro_patterns: ["对象切入"]
+conclusion_patterns: ["回到问题意识"]
+verified_fix_strategies: [{"id": "vf-0001", "problem": "功能宣告句", "fix_kind": "lint_fix", "strategy": "改为判断句", "consumers": "wenzhang-runse"}]
+abstract_rules: ["摘要必须给出判断"]
+conclusion_rules: ["结语避免重复摘要"]
+ai_tone_replacements: [{"from": "本文旨在", "to": "可直接改为研究判断"}]
+---
+
+# 测试刊投稿要求
+""",
+        encoding="utf-8",
+    )
+    lesion_note.write_text(
+        """---
+review_memory: lesion
+patterns: [{"id": "ap-0001", "pattern": "本文旨在", "kind": "lint", "severity": "P0", "fix_hint": "改为直接判断句", "consumers": "both", "promote_status": "candidate"}]
+---
+
+# AI腔替换策略
+""",
+        encoding="utf-8",
+    )
+    return journal_note, lesion_note
+
+
 def main() -> int:
     args = parse_args()
     work_dir = Path(tempfile.mkdtemp(prefix="journal-style-smoke-"))
@@ -182,11 +228,14 @@ def main() -> int:
         refs_csv = work_dir / "references.csv"
         operations_csv = work_dir / "operations.csv"
         fulltext_csv = work_dir / "fulltext.csv"
+        review_memory_root = work_dir / "review-memory-vault"
+        review_memory_output = work_dir / "journal-review-memory-pack.json"
         write_csv(title_csv, build_title_rows())
         write_csv(peer_title_csv, build_peer_title_rows())
         write_csv(refs_csv, build_reference_rows())
         write_csv(operations_csv, build_operations_rows())
         write_csv(fulltext_csv, build_fulltext_rows())
+        build_review_memory_fixture(review_memory_root)
 
         status_ok = work_dir / "wenheng-ok.json"
         status_bad = work_dir / "wenheng-bad.json"
@@ -377,9 +426,27 @@ def main() -> int:
             [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "abstract-metadata-ledger", "--input", str(abstract_ok)],
             [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "core-library", "--input", str(core_ok)],
             [sys.executable, str(SCRIPTS / "run_stage_gates.py"), "--gate", "fulltext-claims", "--input", str(fulltext_ok)],
+            [
+                sys.executable,
+                str(SCRIPTS / "export_review_memory_pack.py"),
+                "--vault-root",
+                str(review_memory_root),
+                "--journal",
+                "测试刊",
+                "--output",
+                str(review_memory_output),
+            ],
+            [sys.executable, str(SKILL / "tests" / "run_review_memory_fixtures.py")],
         ]
         for command in commands:
             run(command, work_dir)
+        review_memory_pack = json.loads(review_memory_output.read_text(encoding="utf-8"))
+        assert review_memory_pack["schema"] == "journal_review_memory_v1"
+        assert review_memory_pack["provenance"] == "human_review_memory"
+        assert review_memory_pack["not_evidence"] is True
+        assert review_memory_pack["format_specs"]["length_band"]["advisory_only"] is True
+        assert not any("source_excerpt" in json.dumps(item, ensure_ascii=False) for item in review_memory_pack.get("avoid_patterns", []))
+        assert review_memory_pack["source_note"].startswith("Obsidian:")
         fail_commands = [
             [sys.executable, str(SCRIPTS / "validate_wenheng_status.py"), "--input", str(status_bad)],
             [sys.executable, str(SCRIPTS / "validate_wenheng_status.py"), "--input", str(status_legacy_bad)],

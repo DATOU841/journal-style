@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "journal review memory pack",
+  "type": "object",
+  "required": [
+    "schema",
+    "provenance",
+    "source_evidence_scope",
+    "not_evidence",
+    "target_journal",
+    "source_note",
+    "source_note_sha",
+    "compiled_at",
+    "compiler_version",
+    "avoid_patterns",
+    "style_hints",
+    "format_specs",
+    "verified_fix_strategies",
+    "abstract_conclusion_rules",
+    "ai_tone_replacements",
+    "review_memory_conflicts"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "journal_review_memory_v1" },
+    "provenance": { "const": "human_review_memory" },
+    "source_evidence_scope": { "const": "human_review_memory" },
+    "not_evidence": { "const": true },
+    "target_journal": { "type": "string", "minLength": 1 },
+    "source_note": { "type": "string", "minLength": 1 },
+    "source_note_sha": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "compiled_at": { "type": "string", "minLength": 1 },
+    "compiler_version": { "type": "string", "minLength": 1 },
+    "avoid_patterns": { "type": "array" },
+    "style_hints": {
+      "type": "object",
+      "required": [
+        "section_rhythm",
+        "intro_patterns",
+        "conclusion_patterns",
+        "most_avoided_tone",
+        "theory_density",
+        "review_density",
+        "consumers"
+      ],
+      "additionalProperties": true
+    },
+    "format_specs": {
+      "type": "object",
+      "required": [
+        "length_band",
+        "abstract",
+        "keyword_count",
+        "notes_convention",
+        "reference_convention",
+        "consumers"
+      ],
+      "additionalProperties": true
+    },
+    "verified_fix_strategies": { "type": "array" },
+    "abstract_conclusion_rules": { "type": "object" },
+    "ai_tone_replacements": { "type": "array" },
+    "review_memory_conflicts": { "type": "array" }
+  }
+}

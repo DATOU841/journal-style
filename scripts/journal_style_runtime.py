@@ -37,6 +37,7 @@ MANIFEST_TRACKED_CONFIG = [
     "config/per-article-profile-schema.json",
     "config/aggregation-schema.json",
     "config/journal-polish-consumption-pack-schema.json",
+    "config/review-memory-pack-schema.json",
     "config/scoring-model-schema.json",
 ]
 
@@ -53,6 +54,7 @@ MANIFEST_TRACKED_SCRIPTS = [
     "scripts/analyze_per_article_style.py",
     "scripts/aggregate_journal_style.py",
     "scripts/export_polish_consumption_pack.py",
+    "scripts/export_review_memory_pack.py",
     "scripts/calibrate_fit_scoring.py",
     "scripts/score_user_manuscript.py",
     "scripts/build_jiansuo_sidecar_manifest.py",

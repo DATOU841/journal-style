@@ -62,3 +62,28 @@
 - 结论尺度和术语倾向必须有证据来源。
 - `metadata_only=true` 时不得交接全文体例、论证风格、注释和参考文献生态约束。
 - 普通 RAG 片段不得替代 MinerU/mu 完整全文包。
+
+## 4. 可选人工评审记忆 overlay
+
+文章润色可 best-effort 读取 `review_memory_overlay`，并把它作为独立建议 ledger，不得混入证据 ledger：
+
+```json
+{
+  "review_memory_overlay": {
+    "present": true,
+    "provenance": "human_review_memory",
+    "source_evidence_scope": "human_review_memory",
+    "not_evidence": true,
+    "pack_ref": "00-intake/journal-review-memory-pack.json",
+    "applies_to": "wenzhang-runse",
+    "advisory_only": true
+  }
+}
+```
+
+消费边界：
+
+- 可读取 `format_specs`、`verified_fix_strategies`、`ai_tone_replacements` 和 `avoid_patterns`。
+- `format_specs.length_band.advisory_only` 必须保持 `true`，不得覆盖文章润色现有字数门禁。
+- `verified_fix_strategies.fix_kind=evidence_action` 只能路由检索入库或 RAG 补证，不得由润色链直接编造引用。
+- 任何情况下都不得把人工记忆写成 `source_excerpt`。

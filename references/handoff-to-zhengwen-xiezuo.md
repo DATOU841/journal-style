@@ -40,3 +40,27 @@
 - 低置信点和待补证据。
 - 不交接可直接粘贴的段落、题名或句子。
 - 全文结构约束必须来自 MinerU/mu 完整全文逐篇画像。
+
+## 4. 可选人工评审记忆 overlay
+
+正文写作可 best-effort 读取 `review_memory_overlay`，但它永远不是证据：
+
+```json
+{
+  "review_memory_overlay": {
+    "present": true,
+    "provenance": "human_review_memory",
+    "source_evidence_scope": "human_review_memory",
+    "not_evidence": true,
+    "pack_ref": "00-intake/journal-review-memory-pack.json",
+    "applies_to": "zhengwen-xiezuo",
+    "advisory_only": true
+  }
+}
+```
+
+消费边界：
+
+- 只读取 `style_hints`、`avoid_patterns` 和 `abstract_conclusion_rules` 作为前塑型提示。
+- 不读取 `source_excerpt`，也不得把人工记忆转写成事实证据。
+- 与 G07 active rules、`journal_style_profile_v1` 或正式 RAG grounding 冲突时，人工记忆让位并记录 `review_memory_conflicts`。

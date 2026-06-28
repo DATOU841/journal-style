@@ -418,3 +418,28 @@
 - `/Users/a13497/.codex/skills/journal-style/tests/run_sidecar_adaptation_fixtures.py`: added synthetic fixtures for missing sidecar, safe manifest, leak rejection, seed planning, core-library boosting, and bibliography scope coverage.
 - `/Users/a13497/.codex/skills/journal-style/.handoff/claude/0.1.12-journal-style-sidecar-adaptation-plan.md`: retained the development plan file for downstream review.
 - Rollback: revert the files above, delete the sidecar plan file if needed, and rebuild `config/release-manifest.json` afterward; do not move tags or publish anything from this working tree.
+
+## 2026-06-28 - Task: journal-style 0.1.13 review memory overlay release prep
+### What was done
+- Upgraded the journal-style version line and public-facing docs to `0.1.13` because `0.1.12` is already published and cannot be reused for new overlay capability.
+- Added a dedicated review-memory fixture suite so the Obsidian workbench overlay path is verified independently from the general smoke path.
+- Extended the smoke path and manifest tracking to cover the new `journal_review_memory_v1` compiler, protocol, and export script.
+### Testing
+- `python3 tests/run_review_memory_fixtures.py`: passed, 5/5 fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures.
+- `python3 -m py_compile scripts/*.py tests/*.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+### Notes
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/VERSION`: bumped to `0.1.13`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/README.md`: aligned public version metadata with `0.1.13`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/docs/public-introduction.zh.md`: aligned public version metadata with `0.1.13` and added the review-memory overlay mention.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/tests/run_review_memory_fixtures.py`: new isolated fixture suite for review-memory export boundaries.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/run_smoke_tests.py`: now exercises the review-memory fixture suite during smoke.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/journal_style_runtime.py`: now tracks the review-memory schema/script in release integrity.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/release-manifest.json`: will be re-signed after validation.
+- Rollback: restore the files listed above to the previous release state and remove this progress entry; if the release is already tagged, publish a corrective version rather than moving the tag.
