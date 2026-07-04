@@ -1,9 +1,9 @@
 {
   "schema": "journal_style_release_manifest_v1",
-  "release_id": "journal-style@0.1.13+832b158becab",
+  "release_id": "journal-style@0.1.13+4f331a8f223d",
   "version": "0.1.13",
-  "manifest_generated_from_commit": "832b158becabf1f9ab5e72e99ed2c8586b904e94",
-  "generated_at": "2026-06-28T15:57:57.559346Z",
+  "manifest_generated_from_commit": "4f331a8f223de0c6ba41e8e3bb9db5a28970b162",
+  "generated_at": "2026-07-04T15:48:35.125964Z",
   "config_sha256": {
     "config/workflow-states.json": "5430c800f04136fe2836db0bc0f1000be844e9f81b86ac46d1308776030f301c",
     "config/stage-gates.json": "64bfce8f3d078bda141470b5e3609ebf4ca91a178f27e2cc820e110d95d5d15b",
@@ -21,7 +21,7 @@
     "scripts/gate_runner.py": "9fce165d527d68213358574e01d7bb92cf922052fcde33fa897988e8aa015bd5",
     "scripts/journal_style_resume.py": "4306b92cd00e3c073218c7a230bb8b404e25f4943045fc57b917f0534c64c8e2",
     "scripts/journal_style_runtime.py": "4759cb21780def8d73849565382dab47137030474406040fa9094b51aaedf3d9",
-    "scripts/wenheng_native.py": "898fcdf2c77940adc7fd7e58bbf53c81a754733004ad9beba9ea7f97114b7d94",
+    "scripts/wenheng_native.py": "1dac4bad63bde8c50679dd35ed4125ce500fdffa827fb232d40500ff773b98fd",
     "scripts/journal-style-startup.py": "7d6a9637a433d3186961f27ae0626ddbd8b168aa996086f4e84ae2c3d41657ae",
     "scripts/build_task_skeleton.py": "eb706befad127208328c94f299f482228ed83c3fff4e4d5d07389125e1e4221b",
     "scripts/run_stage_gates.py": "797dbd19202d51e789e512f5ce0c10ce7bcb9d32fe37adcdb859cdf2fa0e2964",

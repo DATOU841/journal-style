@@ -443,3 +443,24 @@
 - `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/journal_style_runtime.py`: now tracks the review-memory schema/script in release integrity.
 - `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/release-manifest.json`: will be re-signed after validation.
 - Rollback: restore the files listed above to the previous release state and remove this progress entry; if the release is already tagged, publish a corrective version rather than moving the tag.
+
+## 2026-07-04 - Task: Wenheng native read/write auth and retrieval handoff consumption fix
+### What was done
+- Updated journal-style native startup to read B02 task packets with `WENHENG_BACKEND_READ_API_KEY` and keep H08 LearningEvent writes on `WENHENG_BACKEND_API_KEY`.
+- Aligned task packet parsing with the current Wenheng backend shape by accepting direct task payloads, `routing.target_skill`, and `evidence_path` as the H08 evidence stub source while still fail-closing when those resolved fields are absent.
+- Re-signed `config/release-manifest.json` after the native adapter change so runner integrity protection remains load-bearing on top of the existing `0.1.13` release metadata.
+- Verified a real journal-style staging task could bind through B02/F06 and consume the 检索入库 Stage2 handoff through the runner's live step06 gate.
+### Testing
+- `python3 scripts/build_release_manifest.py`
+- `python3 -m py_compile scripts/wenheng_native.py`
+- `python3 scripts/run_smoke_tests.py`
+- `python3 scripts/journal-style-startup.py --task-dir [LOCAL_TASK_COPY]/journal-style-copy --target-journal 江汉论坛 --wenheng-task-id TASK-1783178581909 --compact`
+- `python3 scripts/build_task_skeleton.py --task-dir [LOCAL_TASK_COPY]/journal-style-copy --journal-name 江汉论坛 --task-id TASK-1783178581909 --topic-keywords 艺术,美术,美学,市场,经济 --target-year-range 近三年 --run-mode standard --force`
+- `python3 scripts/journal_style_runner.py --task-dir [LOCAL_TASK_COPY]/journal-style-copy --mode standard` (completed through `step06_zotero_pdf_rag`, then stopped at expected `step07_core_library` missing core-library artifact)
+### Notes
+- Modified files:
+  - `scripts/wenheng_native.py`: accepts current backend task packet shape and preserves read/write key split.
+  - `docs/wenheng-native-protocol.md`: documents `evidence_path` as the current H08 evidence stub source.
+  - `config/release-manifest.json`: re-signed integrity hashes after the native adapter change.
+  - `progress.md`: appends this native handoff consumption record.
+- Rollback: revert the three modified files and rebuild `config/release-manifest.json` from the restored script bytes. Do not publish a journal-style release from this working tree without a separate review.

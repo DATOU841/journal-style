@@ -19,12 +19,20 @@
 
 ## 启动收据与执行闸门
 
-正式任务必须先运行 `scripts/journal-style-startup.py`。该入口验证 B02/F06/H08 后，在 task folder 写入 `00-intake/wenheng-native-binding.json`，作为后续本地执行入口的唯一 task-local 文衡绑定收据。
+正式任务必须先运行 `scripts/journal-style-startup.py`。该入口验证 B02/F06/H08 后，在 task folder 写入 `00-intake/wenheng-native-binding.json`，作为后续本地执行入口的唯一 task-local 文衡绑定收据。当前文衡后端 task packet 以 `evidence_path` 承载 H08 evidence stub；若存在旧字段 `h08_evidence_stub` 或 `h08.evidence_stub` 也可作为同一语义来源，但不得允许 H08 evidence 来源为空。
 
 - `scripts/build_task_skeleton.py` 默认要求该绑定收据存在且为 `validated_by_b02_task_api`，否则 fail-closed。
 - `scripts/journal_style_runner.py` 默认要求该绑定收据存在且为 `validated_by_b02_task_api`，否则 fail-closed。
 - 只有显式离线调试可以使用 `--allow-legacy-debug` 或 `WENHENG_ALLOW_LEGACY_FLOW=1`；legacy/debug 输出不得作为 production evidence、C03 profile 或 H08 完成证据。
 - `00-intake/wenheng-intake-request.json` 只是请求文衡创建或绑定 B02 task 的待办，不是正式任务开始凭证。
+
+## B02/F06 鉴权与路由
+
+文衡后端读写鉴权分离：读取 B02 task packet、task events 或只读状态时必须使用 `WENHENG_BACKEND_READ_API_KEY`，写入 H08 LearningEvent、C03 profile handoff、B02 timeline 或其他受控事件时必须使用 `WENHENG_BACKEND_API_KEY`。两个 key 互不替代；只给写 key 不得判定 B02 read 可用，只给读 key 不得执行生产写回。
+
+`scripts/wenheng_native.py` 的 `verify_wenheng_native()` 在 production/native 模式下必须同时确认 `WENHENG_BACKEND_URL`、`WENHENG_BACKEND_READ_API_KEY` 和 `WENHENG_BACKEND_API_KEY` 存在。B02 task detail 读取只走 read key；H08/C03/B02 写入只走 write key。缺少任一 key 时必须 fail-closed，不得退回 legacy 或 simulated evidence。
+
+F06 正式口径只认 B02 task packet 中的 `routing.channel_decision.decisions[]`。缺少 `decisions[]`、没有匹配 `journal_style` / `journal-style` 的 decision、decision 为 forbidden/blocked/denied，均必须 fail-closed。单字段 verdict 只能作为历史事故描述，不能作为 native 正式放行依据。
 
 ## G07 适用性
 
