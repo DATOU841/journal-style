@@ -1,9 +1,9 @@
 {
   "schema": "journal_style_release_manifest_v1",
-  "release_id": "journal-style@0.1.14+41b70104aa3d",
+  "release_id": "journal-style@0.1.14+ef59bb28d257",
   "version": "0.1.14",
-  "manifest_generated_from_commit": "41b70104aa3dbe44bc25a9946b5c93ec622139d3",
-  "generated_at": "2026-07-06T15:33:03.248220Z",
+  "manifest_generated_from_commit": "ef59bb28d257d3d229d8f3b24298293868399688",
+  "generated_at": "2026-07-06T15:33:36.868393Z",
   "config_sha256": {
     "config/workflow-states.json": "949e23389783538d59f1e09904287a491d097b0ce3014f6dfa01d182a50ad47f",
     "config/stage-gates.json": "64bfce8f3d078bda141470b5e3609ebf4ca91a178f27e2cc820e110d95d5d15b",
