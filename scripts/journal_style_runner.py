@@ -103,20 +103,18 @@ def step_satisfied(task_dir: Path, step: dict, overrides=None) -> tuple[bool, st
 
 
 def resolve_run_mode(state: dict, requested_mode: str = "") -> str:
-    mode = (
-        requested_mode
-        or state.get("run_mode")
-        or state.get("requested_mode")
-        or (state.get("input") or {}).get("run_mode")
-        or "standard"
-    )
-    mode = str(mode).strip().lower()
-    return mode if mode in {"light", "standard", "full"} else "standard"
+    """Resolve every formal or legacy task to the single full-depth path.
+
+    Older tasks may still carry light/standard in their mirrors. Those fields
+    are treated as historical request labels only; they must not re-open the
+    metadata-only completion path.
+    """
+    return "full"
 
 
 def workflow_steps_for_mode(workflow: dict, run_mode: str) -> tuple[list[dict], list[str]]:
-    mode_cfg = (workflow.get("run_modes") or {}).get(run_mode) or {}
-    enabled_paths = set(mode_cfg.get("paths") or ["common", "metadata", "metadata_terminal"])
+    mode_cfg = (workflow.get("run_modes") or {}).get("full") or {}
+    enabled_paths = set(mode_cfg.get("paths") or ["common", "metadata", "fulltext", "scoring"])
     steps = []
     skipped = []
     for step in workflow["steps"]:
@@ -154,7 +152,7 @@ def validate_step_order(steps: list[dict]) -> tuple[bool, str]:
     return True, "workflow order ok"
 
 
-def compute_position(task_dir: Path, workflow: dict, overrides=None, run_mode: str = "standard") -> dict:
+def compute_position(task_dir: Path, workflow: dict, overrides=None, run_mode: str = "full") -> dict:
     steps, skipped = workflow_steps_for_mode(workflow, run_mode)
     position = {
         "current_step": None,
@@ -194,7 +192,7 @@ def compute_position(task_dir: Path, workflow: dict, overrides=None, run_mode: s
 def main() -> int:
     parser = argparse.ArgumentParser(description="journal-style state-machine runner.")
     parser.add_argument("--task-dir", required=True, type=Path)
-    parser.add_argument("--mode", choices=["light", "standard", "full"], default="", help="Run mode. Defaults to task state run_mode/requested_mode or standard.")
+    parser.add_argument("--mode", choices=["full"], default="", help="Run mode. Formal journal-style tasks are full-depth only.")
     parser.add_argument("--status", action="store_true", help="Report current position only.")
     args = parser.parse_args()
 

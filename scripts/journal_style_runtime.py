@@ -58,6 +58,7 @@ MANIFEST_TRACKED_SCRIPTS = [
     "scripts/calibrate_fit_scoring.py",
     "scripts/score_user_manuscript.py",
     "scripts/build_jiansuo_sidecar_manifest.py",
+    "scripts/build_mu_fulltext_core_pack_from_sidecar.py",
     "scripts/build_journal_style_rag_seed_plan.py",
 ]
 

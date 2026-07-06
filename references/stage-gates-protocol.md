@@ -29,10 +29,10 @@
 
 ### run-mode path gate
 
-- `light` / `standard` 只推进 common + metadata + metadata terminal 路径。
-- `full` 推进 common + metadata + fulltext + scoring 路径。
-- MinerU/mu 完整全文包是 full 路径 hard gate，不是所有任务 hard gate。
-- metadata-only 终态不得携带全文稳定风格结论。
+- 正式任务只推进 common + metadata + fulltext + scoring 路径。
+- 历史 `light` / `standard` / 空模式必须解析为 `full`，不得进入 metadata terminal。
+- MinerU/mu 完整全文包是正式任务 hard gate。
+- metadata-only 只能作为阻塞态，不得作为正式完成态。
 
 ### no-metadata-only-completion
 
@@ -76,6 +76,12 @@
 - full 模式 ready 篇必须包含 `section_tree`、`paragraph_sequence`、`reference_list`；缺任一项不计入 ready 篇数。
 - `notes` 是建议结构字段，低覆盖率只降级注释体例分析，不单独阻断 ready。
 - 就绪篇数低于 10 篇判 `NO_GO`；10-19 篇只允许 `DEGRADED` 初步偏好。
+
+### zotero-pdf-rag-handoff
+
+- 原始交接输入固定为 `025-rag-import/zotero-pdf-rag-handoff-input.json`。
+- `06-gates/zotero-pdf-rag-handoff.json` 只保存 `gate_runner.py` 对原始输入现场生成的 sha-chained receipt。
+- 禁止把原始 handoff 输入写在 `06-gates/` 下；否则 runner 重跑 gate 时会覆盖输入，造成下一轮无法反查 item-level receipts。
 
 ### per-article-profile-complete
 

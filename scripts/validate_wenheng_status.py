@@ -64,6 +64,14 @@ def main() -> int:
         if key in pipeline:
             check(pipeline.get(key) in ALLOWED_STATUS, f"invalid pipeline_status.{key}", problems)
 
+    overall_js = pipeline.get("overall_journal_style")
+    if overall_js == "metadata_only":
+        problems.append(
+            "overall_journal_style cannot be 'metadata_only': "
+            "metadata-only is a blocked intermediate state, not a completion state; "
+            "use 'blocked' instead"
+        )
+
     layers = data.get("analysis_layers", {})
     legacy_analysis_status = pipeline.get("analysis")
     if not layers and legacy_analysis_status in READY_STATUS:

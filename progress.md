@@ -464,3 +464,124 @@
   - `config/release-manifest.json`: re-signed integrity hashes after the native adapter change.
   - `progress.md`: appends this native handoff consumption record.
 - Rollback: revert the three modified files and rebuild `config/release-manifest.json` from the restored script bytes. Do not publish a journal-style release from this working tree without a separate review.
+
+## 2026-07-06 - Task: journal-style 0.1.14 single full-depth mode remediation
+### What was done
+- Documented the C03 non-display root cause and wrote a Claude planning prompt for the single-mode remediation handoff.
+- Converted the formal journal-style contract to a single `full` full-depth mode: metadata-only output is now a blocker/intermediate state only, not a delivery standard.
+- Removed the formal metadata-terminal state-machine branch, forced legacy `light` / `standard` task mirrors to resolve as `full`, and made new skeletons default to `full`.
+- Added regression coverage proving old `standard` state now blocks at the MinerU/mu fulltext pack gate, while a complete full-depth fixture still reaches handoff completion.
+- Bumped the skill version to `0.1.14` and re-signed the release manifest after the tracked workflow and script changes.
+### Testing
+- `python3 -m py_compile scripts/*.py`: passed.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures.
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_sidecar_adaptation_fixtures.py`: passed, 6/6 fixtures.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+### Notes
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/.handoff/claude/0.1.14-single-full-depth-mode-materials.md`: added the C03 symptom, production profile facts, root cause, and acceptance criteria.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/.handoff/claude/0.1.14-single-full-depth-mode-planning-prompt.md`: added the Claude/Fable planning prompt for single full-depth mode.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/README.md`: aligned public version metadata with `0.1.14`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/SKILL.md`: replaced the three-mode section with the single full-depth formal task contract.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/VERSION`: bumped to `0.1.14`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/release-manifest.json`: re-signed integrity hashes after workflow and script changes.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/workflow-states.json`: removed formal `light` / `standard` run modes and deleted the metadata-only terminal step.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/docs/public-introduction.zh.md`: aligned public version metadata with `0.1.14`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/docs/wenheng-native-protocol.md`: documented single full-depth mode and the fulltext-pack blocker rule.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/output-schema.md`: clarified that `METADATA_ONLY_NOT_FULLTEXT_READY` is a blocker label, not delivery success.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/run-modes-protocol.md`: rewrote the run-mode protocol as the single full-depth protocol.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/stage-gates-protocol.md`: updated the run-mode gate rules to force formal tasks through full-depth.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_task_skeleton.py`: restricted `--run-mode` to `full` and defaulted new tasks to `full`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/journal_style_runner.py`: forced all formal and legacy task mode resolution to `full`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/tests/run_state_machine_fixtures.py`: replaced the metadata-terminal fixture with a legacy-standard-to-fulltext-gate blocker fixture.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/progress.md`: appended this implementation and verification record.
+- Rollback: revert this commit or restore the files listed above from `HEAD~1`, delete the two `.handoff/claude/0.1.14-*` files if needed, and rebuild `config/release-manifest.json`; no production C03 data, task data, tag, push, or deployment was changed in this local remediation.
+
+## 2026-07-06 - Task: journal-style 0.1.14 full-depth closure and C03 production profile
+### What was done
+- Closed the remaining single-mode escape in `wenheng-center-status` validation by rejecting `overall_journal_style=metadata_only` as a formal overall status.
+- Added a direct sidecar-to-MinerU fulltext core-pack builder so existing nonempty `检索入库` sidecars can be converted into the required journal-style full-depth input without rerunning CNKI/Zotero/PDF/RAG.
+- Extended sidecar manifesting to support recovered external sidecar directories and to report full-mode structure coverage while preserving the no-full-md-body-read safety boundary.
+- Split Step6 raw handoff input from the generated gate receipt so reruns no longer overwrite the original `检索入库` handoff evidence.
+- Ran the 江汉论坛 real task through the full-depth chain from existing 54 nonempty sidecar fulltexts, generated per-article profiles, aggregation, scoring, handoff, and validated Wenheng status.
+- Created the formal Wenheng task `TASK-1783183335633-FULLDEPTH`, copied the completed task evidence into the controlled task folder, completed it through the backend, and wrote the C03 journal profile through `/api/c03/journal-profiles/from-task/TASK-1783183335633-FULLDEPTH`.
+- Verified the C03 profile `JP-TASK-1783183335633-FULLDEPTH` is a production profile for 江汉论坛 with `source_run_id=RUN-jianghan-full-depth-20260706`, `FULLTEXT_READY`/`full-depth` tags, and no `metadata-only` or `standard-mode` tag.
+- Added the Claude final-review prompt for the full remediation and C03 closure.
+### Testing
+- `python3 -m py_compile scripts/*.py`: passed.
+- `python3 -m py_compile tests/run_state_machine_fixtures.py`: passed.
+- Inline `overall_journal_style=metadata_only` validation check: passed with expected exit 1 and `A节修复验收: PASS`.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures including `standard_task_forced_to_full_blocks_at_step07b` and `full_depth_with_valid_sidecar_completes`.
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_sidecar_adaptation_fixtures.py`: passed, 8/8 fixtures including `build_mu_pack_from_sidecar_pass`.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+- Server-side 江汉论坛 full-depth run: 54 sidecar articles converted to a valid mu fulltext core pack, runner reached `completed`, `validate_wenheng_status.py` passed, and C03 GET confirmed the production profile.
+### Notes
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/.handoff/claude/0.1.14-single-full-depth-mode-final-review-prompt.md`: added the release-blocking Claude final-review prompt and exact C03 verification requirements.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/.handoff/droid/0.1.14-single-full-depth-mode-plan.md`: retained the Droid execution plan used for this run.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/workflow-states.json`: separated Step6 handoff input from the generated gate receipt and kept the state machine on the full-depth path.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/release-manifest.json`: kept the tracked script/config hashes current after source changes.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/jiansuo-sidecar-consumption-protocol.md`: corrected the old fallback wording so missing sidecars now block full-depth completion instead of allowing metadata-only delivery.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/output-schema.md`: clarified full-depth handoff and blocker labels.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/references/stage-gates-protocol.md`: documented the full-depth gate input/receipt behavior and blocker semantics.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/aggregate_journal_style.py`: exported `FULLTEXT_READY` and fulltext-layer status into the downstream consumption pack.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_jiansuo_sidecar_manifest.py`: added external sidecar directory support and full-mode structure coverage reporting without opening `full.md` bodies.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_material_intake_manifest.py`: registered the new Step6 raw handoff input path.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_mu_fulltext_core_pack_from_sidecar.py`: added the converter from existing `检索入库` fulltext sidecars to `mu-fulltext-core-pack.json`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/journal_style_runtime.py`: added the new converter script to release integrity tracking.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/validate_wenheng_status.py`: rejected `overall_journal_style=metadata_only` as a formal overall status.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/tests/run_sidecar_adaptation_fixtures.py`: added sidecar structure counting and sidecar-to-mu-pack regression coverage.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/tests/run_state_machine_fixtures.py`: added the full-depth completion and legacy-standard blocker fixtures.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/progress.md`: appended this closure, verification, and C03 writeback record.
+- Server task evidence path: `/opt/wenheng-control/repo/data/tasks/TASK-1783183335633-FULLDEPTH`.
+- Server runtime task path: `/home/ubuntu/wenheng-runtime/jianghan-forum-journal-style-20260704`.
+- Rollback: revert or reset the local source changes before commit, rebuild `config/release-manifest.json`, and remove this progress entry if this local candidate is abandoned. The C03 writeback is production data; rollback must be done through the Wenheng backend by retiring or superseding `JP-TASK-1783183335633-FULLDEPTH`, not by editing task artifacts or database rows by hand.
+
+## 2026-07-06 - Task: journal-style 0.1.14 BLOCK-01 sidecar manifest reference coverage fix
+### What was done
+- Resolved the final-review blocker where the 江汉论坛 sidecar manifest showed `reference_list` coverage as 1/54 while the later mu fulltext pack had 54/54.
+- Added a structure-only summary output from the sidecar-to-mu-pack builder so reference coverage derived during fulltext pack construction can be reviewed without embedding fulltext bodies in the sidecar manifest.
+- Updated the sidecar manifest builder to consume that structure summary as a count-only overlay, preserving `full_md_files_opened=0` while reconciling `section_tree` / `paragraph_sequence` / `reference_list` coverage.
+- Added a regression fixture proving a sidecar with missing manifest-level `reference_list` can be reconciled through the structure summary without opening `full.md` in manifest generation.
+- Rebuilt the 江汉论坛 runtime manifest and formal task evidence so both now show 54/54 full-mode structure readiness and `full_md_files_opened=0`.
+### Testing
+- `python3 -m py_compile scripts/*.py`: passed.
+- `python3 tests/run_state_machine_fixtures.py`: passed, 35/35 fixtures.
+- `python3 tests/run_downstream_consumable_fixtures.py`: passed, 23/23 fixtures.
+- `python3 tests/run_sidecar_adaptation_fixtures.py`: passed, 9/9 fixtures including `structure_summary_reconciles_manifest_without_fullmd_read`.
+- `python3 scripts/run_smoke_tests.py`: passed.
+- `python3 scripts/validate_readme.py`: passed.
+- `python3 scripts/validate_public_introduction.py --mode final`: passed.
+- `python3 scripts/build_release_manifest.py --check`: passed, manifest current.
+- `git diff --check`: passed.
+- Server F-section verification: 江汉论坛 manifest `item_count=54`, `ready_structure_count=54`, `reference_list.count=54`, `full_md_files_opened=0`; `mu-fulltext-pack` PASS with 54 ready articles; runner `current_step=completed`; provenance gate PASS; `validate_wenheng_status.py` returned `ok=true`.
+### Notes
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_mu_fulltext_core_pack_from_sidecar.py`: now writes `mu-fulltext-structure-summary.json`, a structure-count-only companion file with no fulltext body.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/scripts/build_jiansuo_sidecar_manifest.py`: now reads the structure summary overlay to reconcile full-mode structure coverage without opening `full.md`.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/tests/run_sidecar_adaptation_fixtures.py`: added the 9th fixture for reference-list coverage reconciliation through a structure summary.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/config/release-manifest.json`: re-signed tracked script hashes after the blocker fix.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/progress.md`: appended this blocker-resolution record.
+- Server runtime updated files: `/home/ubuntu/wenheng-runtime/journal-style-skill-0.1.14-runtime/scripts/build_mu_fulltext_core_pack_from_sidecar.py`, `/home/ubuntu/wenheng-runtime/journal-style-skill-0.1.14-runtime/scripts/build_jiansuo_sidecar_manifest.py`, and `/home/ubuntu/wenheng-runtime/journal-style-skill-0.1.14-runtime/config/release-manifest.json`.
+- Server evidence updated files: `/home/ubuntu/wenheng-runtime/jianghan-forum-journal-style-20260704/00-intake/jiansuo-sidecar-manifest.json`, `/home/ubuntu/wenheng-runtime/jianghan-forum-journal-style-20260704/03-analysis/fulltext-layer/mu-fulltext-core-pack.json`, `/home/ubuntu/wenheng-runtime/jianghan-forum-journal-style-20260704/03-analysis/fulltext-layer/mu-fulltext-structure-summary.json`, plus the same evidence copies under `/opt/wenheng-control/repo/data/tasks/TASK-1783183335633-FULLDEPTH`.
+- Rollback: restore the two script files and `config/release-manifest.json` from the previous candidate, rerun `python3 scripts/build_release_manifest.py`, and restore the pre-fix server manifest/core-pack evidence from backup or by rerunning the previous builder. If the production C03 profile must be rolled back, retire or supersede `JP-TASK-1783183335633-FULLDEPTH` through Wenheng backend controls rather than editing database rows manually.
+
+## 2026-07-06 - Task: journal-style 0.1.14 formal Fable review prompt
+### What was done
+- Created a separate formal Fable/Claude review prompt for `journal-style 0.1.14` so the next reviewer does not mistake Codex internal precheck files for an official release review.
+- Explicitly marked the existing `final-review.md` and `rereview.md` files as background-only internal prechecks and required the formal reviewer to rerun code, local gates, server evidence checks, and C03 verification independently.
+- Included the current release boundary: no commit, tag, push, formal skill sync, server runtime final sync, or deployment may happen until the formal review returns `STATUS: PASS` and the user separately authorizes the release chain.
+### Testing
+- `sed -n '1,80p' .handoff/claude/0.1.14-single-full-depth-mode-formal-fable-review-prompt.md`: confirmed the formal prompt first section states the internal reports are not PASS evidence and names the required output report path.
+- `git status --short .handoff/claude/0.1.14-single-full-depth-mode-formal-fable-review-prompt.md progress.md`: confirmed the new prompt and this progress entry are tracked as current working-tree changes.
+### Notes
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/.handoff/claude/0.1.14-single-full-depth-mode-formal-fable-review-prompt.md`: added the standalone formal review prompt for Fable/Claude with A-J review requirements and strict PASS/BLOCKED rules.
+- `/Users/a13497/Desktop/skill工作区/journal-style-skill/progress.md`: appended this formal-review-prep record.
+- Rollback: delete the formal review prompt file and remove this progress entry; no code, runtime, C03 profile, Git tag, push, formal sync, or deployment state is changed by this prompt-only step.

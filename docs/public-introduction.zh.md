@@ -1,6 +1,6 @@
 <!-- content_source: wenheng_claude -->
 <!-- skill_name: journal-style -->
-<!-- version: 0.1.13 -->
+<!-- version: 0.1.14 -->
 
 # journal-style skill 公开介绍
 
@@ -10,7 +10,7 @@ journal-style 是文衡体系中用于期刊风格分析与投稿辅助决策的
 
 ## 当前版本状态
 
-- 版本：0.1.13
+- 版本：0.1.14
 - 发布日期：以 Git tag / release 记录为准
 - 定位：证据约束下的期刊分析与交接版本
 - 上游依赖：题录、Zotero 状态、PDF 状态、RAG 状态必须来自检索入库技能已交接的材料。真实检索、PDF 获取、RAG 入库由检索入库技能承担，journal-style 接收已完成的题录、Zotero 导出文件和全文样本交接物

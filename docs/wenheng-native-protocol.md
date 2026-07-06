@@ -34,6 +34,12 @@
 
 F06 正式口径只认 B02 task packet 中的 `routing.channel_decision.decisions[]`。缺少 `decisions[]`、没有匹配 `journal_style` / `journal-style` 的 decision、decision 为 forbidden/blocked/denied，均必须 fail-closed。单字段 verdict 只能作为历史事故描述，不能作为 native 正式放行依据。
 
+## 单一全量深度模式
+
+正式 `journal-style` 任务只允许 `full` 全量深度模式。题录、摘要、栏目、作者机构、基金和投稿运营分析是 full-depth 链路中的中间证据，不再构成独立交付模式。历史 `light`、`standard` 或空模式字段必须由 runner 归一为 `full`。
+
+缺 MinerU/mu 完整全文核心包时，任务必须停在 `step07b_mu_fulltext_pack` 并保持阻塞；不得生成正式 C03 profile、不得生成下游消费包、不得把 `METADATA_ONLY_NOT_FULLTEXT_READY` 解释为交付成功。
+
 ## G07 适用性
 
 本 skill 不写正文、不润色正文、不模仿期刊语气，正文风格类 G07 rules 默认不适用；必须在 `wenheng-center-status.json`、H08 evidence 和 C03 handoff 中写 `style_memory_not_applicable_reason`。若面向用户的分析摘要或交接说明需要中文表达约束，可读取 G07 active rules 并记录 applied/ignored/conflicts。

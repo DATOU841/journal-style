@@ -304,7 +304,7 @@ def make_metadata_ready_task(tmp: Path, name: str, mode: str = "standard") -> Pa
     write(task / "06-gates" / "title-screening-gate.json", {"verdict": "PASS"})
     write(task / "02-topic-library" / "topic-special-library-plan.md", "plan\n")
     write(task / "02-topic-library" / "topic-related-title-list.xlsx", "fixture\n")
-    write(task / "06-gates" / "zotero-pdf-rag-handoff.json", {
+    write(task / "025-rag-import" / "zotero-pdf-rag-handoff-input.json", {
         "status": "success", "task_collection_binding": "live", "item_count": 10,
         "item_receipts": [{"title": f"t{i}"} for i in range(10)],
         "pdf_count": 6, "rag_doc_count": 5, "recall_test": {"sampled": 2, "passed": 2}
@@ -450,16 +450,21 @@ def fx_runner_stops(tmp: Path):
            out.get("blocked_reason", ""))
 
 
-def fx_metadata_mode_reaches_metadata_terminal(tmp: Path):
-    """Metadata-only modes must not be blocked by the MinerU/mu fulltext gate."""
-    task = make_metadata_ready_task(tmp, "metadata_ok", mode="standard")
+def fx_standard_task_forced_to_full_blocks_at_step07b(tmp: Path):
+    """Legacy standard state must resolve to full and stop at the mu pack gate."""
+    task = make_metadata_ready_task(tmp, "task_standard_legacy", mode="standard")
+    write_native_binding(task)
     proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:
         out = {}
-    record("metadata_mode_reaches_metadata_terminal",
-           out.get("current_step") == "completed" and "step07b_mu_fulltext_pack" in out.get("skipped_by_mode", []),
+    blocked_reason = out.get("blocked_reason", "")
+    record("standard_task_forced_to_full_blocks_at_step07b",
+           out.get("run_mode") == "full"
+           and out.get("current_step") == "step07b_mu_fulltext_pack"
+           and not out.get("skipped_by_mode")
+           and ("mu-fulltext-core-pack.json" in blocked_reason or "missing" in blocked_reason),
            proc.stdout[:120] + proc.stderr[:120])
 
 
@@ -476,10 +481,22 @@ def fx_full_mode_requires_mu_pack(tmp: Path):
            proc.stdout[:120] + proc.stderr[:120])
 
 
-def fx_full_mode_reaches_handoff_terminal(tmp: Path):
-    """A fully satisfied full-mode chain must traverse mu -> per-article -> aggregation -> calibration -> fit -> handoff."""
-    task = make_metadata_ready_task(tmp, "full_ok", mode="full")
+def fx_full_depth_with_valid_sidecar_completes(tmp: Path):
+    """A fully satisfied full-depth chain must traverse sidecar-derived mu pack through handoff."""
+    task = make_metadata_ready_task(tmp, "full_depth_valid_sidecar", mode="full")
+    write_native_binding(task)
     add_fulltext_ready_artifacts(task, calibrated=True)
+    status = json.loads((task / "05-handoff" / "wenheng-center-status.json").read_text(encoding="utf-8"))
+    status.setdefault("pipeline_status", {})["overall_journal_style"] = "complete"
+    status["pipeline_status"]["fulltext_analysis"] = "done"
+    status.setdefault("analysis_layers", {})["completion_label"] = "FULLTEXT_READY"
+    status["analysis_layers"]["fulltext_layer_status"] = "done"
+    status["analysis_layers"].setdefault("fulltext_evidence", {}).update({
+        "fulltext_sample_count": 20,
+        "rag_available_rate": 0.8,
+        "pdf_coverage_rate": 0.8,
+    })
+    write(task / "05-handoff" / "wenheng-center-status.json", status)
     proc = run_legacy([str(SCRIPTS / "journal_style_runner.py"), "--task-dir", str(task)])
     try:
         out = json.loads(proc.stdout)
@@ -495,8 +512,13 @@ def fx_full_mode_reaches_handoff_terminal(tmp: Path):
         "step09_fit",
         "step10_handoff",
     }
-    record("full_mode_reaches_handoff_terminal",
-           out.get("current_step") == "completed" and required.issubset(set(completed)),
+    scoring = json.loads((task / "04-fit-evaluation" / "journal-fit-scoring-model.json").read_text(encoding="utf-8"))
+    replay_scores = scoring.get("replay_scores") or []
+    record("full_depth_with_valid_sidecar_completes",
+           proc.returncode == 0
+           and out.get("current_step") == "completed"
+           and required.issubset(set(completed))
+           and len(replay_scores) >= 10,
            proc.stdout[:120] + proc.stderr[:120])
 
 
@@ -555,7 +577,7 @@ def fx_wenheng_skeleton_allows_legacy_debug(tmp: Path):
     state_path = task / "task-state.json"
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
     record("wenheng_skeleton_allows_legacy_debug",
-           proc.returncode == 0 and state.get("wenheng_native", {}).get("required") is False,
+           proc.returncode == 0 and state.get("wenheng_native", {}).get("required") is False and state.get("run_mode") == "full",
            proc.stdout[:160] + proc.stderr[:160])
 
 
@@ -806,7 +828,7 @@ def fx_integrity_dirty_config_must_fail(tmp: Path):
     skill = _clone_skill(tmp, "dirtycfg"); _build_manifest(skill)
     cfg = skill / TRACKED_CONFIG_REL
     data = json.loads(cfg.read_text(encoding="utf-8"))
-    data["steps"][6]["gate_input"] = "025-rag-import/zotero-pdf-rag-handoff-input.json"  # the real drift
+    data["steps"][6]["gate_input"] = "025-rag-import/drifted-handoff-input.json"
     cfg.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     task = tmp / "dirtycfg_task"; task.mkdir()
     record("integrity_dirty_config_must_fail (MUST-FAIL guard)", _is_blocked(_runner(skill, task)))
@@ -951,8 +973,8 @@ def main() -> int:
                    fx_wenheng_production_ignores_legacy_runner_escape,
                    fx_wenheng_production_ignores_legacy_skeleton_escape,
                    fx_wenheng_startup_without_b02_writes_intake_request,
-                   fx_runner_stops, fx_metadata_mode_reaches_metadata_terminal, fx_full_mode_requires_mu_pack,
-                   fx_full_mode_reaches_handoff_terminal, fx_uncalibrated_model_blocks_before_fit,
+                   fx_runner_stops, fx_standard_task_forced_to_full_blocks_at_step07b, fx_full_mode_requires_mu_pack,
+                   fx_full_depth_with_valid_sidecar_completes, fx_uncalibrated_model_blocks_before_fit,
                    fx_material_intake_unblocks, fx_p4_untraceable,
                    fx_p4_missing_ledger_no_go, fx_p5_credential, fx_p5_public_ok,
                    fx_p6_gateless_never_skip, fx_p6_gatefail_rejected, fx_p6_gatepass_accepted,

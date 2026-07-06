@@ -3,17 +3,9 @@
   "_note": "Machine-readable state machine for the journal-style runner. Each step declares entry conditions, required inputs, produced artifacts, governing gate, and next step. The runner advances strictly in order; a step cannot be entered until its prerequisite step is gate-verified. Steps without a gate cannot be marked satisfied_by_prior_run (P6 iron rule).",
   "authoritative_state_file": "current-run-state.json",
   "run_modes": {
-    "light": {
-      "paths": ["common", "metadata", "metadata_terminal"],
-      "description": "Identity, title corpus, metadata-layer analysis, and metadata-only handoff. Does not require MinerU/mu fulltext pack."
-    },
-    "standard": {
-      "paths": ["common", "metadata", "metadata_terminal"],
-      "description": "Metadata-grounded journal analysis path. Fulltext style claims remain blocked until full mode."
-    },
     "full": {
       "paths": ["common", "metadata", "fulltext", "scoring"],
-      "description": "Complete downstream-consumable path requiring MinerU/mu fulltext pack, per-article profiles, aggregation, calibrated scoring, and provenance-gated handoff."
+      "description": "Single formal path. Requires MinerU/mu fulltext pack, metadata evidence as an intermediate layer, per-article profiles, aggregation, calibrated scoring, and provenance-gated handoff."
     }
   },
   "read_only_mirrors": [
@@ -134,11 +126,13 @@
         "step05_topic_library.satisfied"
       ],
       "requires_inputs": [
-        "02-topic-library/topic-related-title-list.xlsx"
+        "02-topic-library/topic-related-title-list.xlsx",
+        "025-rag-import/zotero-pdf-rag-handoff-input.json"
       ],
       "produces": [
-        "06-gates/zotero-pdf-rag-handoff.json"
+        "025-rag-import/zotero-pdf-rag-handoff-input.json"
       ],
+      "gate_input": "025-rag-import/zotero-pdf-rag-handoff-input.json",
       "gate": "zotero-pdf-rag-handoff",
       "next": "step07_core_library",
       "paths": ["common"],
@@ -198,27 +192,9 @@
       ],
       "gate_input": "03-analysis/metadata-layer/abstract-metadata-ledger.jsonl",
       "gate": "abstract-metadata-ledger",
-      "next": "step08c_metadata_handoff",
+      "next": "step08b1_per_article_profile",
       "paths": ["metadata"],
       "resume_skippable": true
-    },
-    {
-      "id": "step08c_metadata_handoff",
-      "name": "Step 8c metadata-only handoff",
-      "entry": [
-        "step08a_metadata_layer.satisfied"
-      ],
-      "requires_inputs": [
-        "03-analysis/metadata-layer/"
-      ],
-      "produces": [
-        "05-handoff/wenheng-center-status.json"
-      ],
-      "gate": "no-metadata-only-completion",
-      "next": null,
-      "paths": ["metadata_terminal"],
-      "resume_skippable": false,
-      "_rule": "Metadata path terminal. It may only close with METADATA_ONLY_NOT_FULLTEXT_READY or other non-fulltext completion; fulltext style claims remain unavailable."
     },
     {
       "id": "step08b1_per_article_profile",

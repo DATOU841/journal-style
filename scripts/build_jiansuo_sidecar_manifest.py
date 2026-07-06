@@ -64,12 +64,24 @@ SECRET_PATTERNS = [
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build safe jiansuo-ruku sidecar manifest.")
-    parser.add_argument("--task-dir", required=True, type=Path)
+    parser.add_argument("--task-dir", type=Path)
+    parser.add_argument(
+        "--sidecar-dir",
+        type=Path,
+        default=None,
+        help="Optional direct path to 025-rag-import/fulltext. Used for recovered legacy tasks whose sidecar tree lives outside task-dir.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
         default=None,
         help="Output path; defaults to 00-intake/jiansuo-sidecar-manifest.json under task-dir.",
+    )
+    parser.add_argument(
+        "--structure-summary",
+        type=Path,
+        default=None,
+        help="Optional journal-style mu-fulltext-structure-summary.json. It is structure-count only and is used to reconcile recovered legacy sidecar manifests without opening full.md bodies.",
     )
     return parser.parse_args()
 
@@ -355,8 +367,84 @@ def summarize_gap_ledger(task_dir: Path, safety: dict[str, Any], warnings: list[
     }
 
 
-def summarize_fulltext_index(task_dir: Path, safety: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
-    path = task_dir / SIDECAR_PATHS["fulltext_index"]
+def _structure_summary(row: dict[str, Any]) -> dict[str, Any]:
+    required = ["section_tree", "paragraph_sequence", "reference_list"]
+    present = {field: row.get(field) not in (None, "", [], {}) for field in required}
+    counts = {
+        field: len(row.get(field) or []) if isinstance(row.get(field), list) else 0
+        for field in required
+    }
+    return {
+        "present": present,
+        "counts": counts,
+        "ready_for_full_mode": all(present.values()),
+    }
+
+
+def load_structure_summary(task_dir: Path, path: Path | None, warnings: list[str], safety: dict[str, Any]) -> dict[str, Any]:
+    summary_path = path or task_dir / "03-analysis" / "fulltext-layer" / "mu-fulltext-structure-summary.json"
+    if not summary_path.is_file():
+        return {"exists": False, "path": str(summary_path), "articles_by_id": {}}
+    data = safe_load_json(summary_path, warnings, safety)
+    if not isinstance(data, dict):
+        return {"exists": False, "path": str(summary_path), "articles_by_id": {}}
+    articles_by_id: dict[str, dict[str, Any]] = {}
+    article_rows = data.get("articles") if isinstance(data.get("articles"), list) else []
+    for row in [item for item in article_rows if isinstance(item, dict)]:
+        article_id = str(first_present(row, "article_id", "stable_id", "source_id", "id") or "")
+        counts = row.get("structure_counts") if isinstance(row.get("structure_counts"), dict) else {}
+        if not article_id:
+            continue
+        articles_by_id[article_id] = {
+            "article_id": article_id,
+            "title": str(row.get("title") or ""),
+            "structure_counts": {
+                "section_tree": int(counts.get("section_tree") or 0),
+                "paragraph_sequence": int(counts.get("paragraph_sequence") or 0),
+                "reference_list": int(counts.get("reference_list") or 0),
+            },
+            "fulltext_sha256": str(row.get("fulltext_sha256") or ""),
+            "reference_sources": as_list(row.get("reference_sources")),
+        }
+    return {
+        "exists": True,
+        "path": str(summary_path),
+        "rel_path": relpath(task_dir, summary_path),
+        "sha256": sha256_file(summary_path),
+        "article_count": len(articles_by_id),
+        "articles_by_id": articles_by_id,
+        "rule": "Structure-count overlay only; no full.md body is opened by sidecar manifest generation.",
+    }
+
+
+def overlay_structure_summary(row_structure: dict[str, Any], overlay: dict[str, Any] | None) -> dict[str, Any]:
+    if not overlay:
+        return row_structure
+    counts = overlay.get("structure_counts") if isinstance(overlay.get("structure_counts"), dict) else {}
+    present = dict(row_structure.get("present") or {})
+    merged_counts = dict(row_structure.get("counts") or {})
+    for field in ("section_tree", "paragraph_sequence", "reference_list"):
+        count = int(counts.get(field) or 0)
+        if count > 0:
+            present[field] = True
+            merged_counts[field] = max(int(merged_counts.get(field) or 0), count)
+    return {
+        "present": present,
+        "counts": merged_counts,
+        "ready_for_full_mode": all(bool(present.get(field)) for field in ("section_tree", "paragraph_sequence", "reference_list")),
+        "overlay_source": "mu_fulltext_structure_summary",
+    }
+
+
+def summarize_fulltext_index(
+    task_dir: Path,
+    safety: dict[str, Any],
+    warnings: list[str],
+    sidecar_dir: Path | None = None,
+    structure_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    fulltext_root = sidecar_dir.resolve() if sidecar_dir else task_dir / "025-rag-import" / "fulltext"
+    path = fulltext_root / "fulltext-index.json"
     if not path.is_file():
         return {"exists": False, "item_count": 0, "items": []}
     data = safe_load_json(path, warnings, safety)
@@ -364,6 +452,8 @@ def summarize_fulltext_index(task_dir: Path, safety: dict[str, Any], warnings: l
     items = []
     vectorized = 0
     available = 0
+    structure_counts = {"section_tree": 0, "paragraph_sequence": 0, "reference_list": 0}
+    ready_structure_count = 0
     for row in records:
         stable_id = str(first_present(row, "stable_id", "source_id", "id") or "")
         title = str(first_present(row, "title", "display_title") or "")
@@ -383,7 +473,8 @@ def summarize_fulltext_index(task_dir: Path, safety: dict[str, Any], warnings: l
             "fulltext_missing": bool(row.get("fulltext_missing")),
             "full_md_path": full_md_path,
         }
-        manifest_path = task_dir / "025-rag-import" / "fulltext" / stable_id / "manifest.json" if stable_id else None
+        row_structure = _structure_summary(row)
+        manifest_path = fulltext_root / stable_id / "manifest.json" if stable_id else None
         if manifest_path and manifest_path.is_file():
             item["manifest_path"] = relpath(task_dir, manifest_path)
             item["manifest_sha256"] = sha256_file(manifest_path)
@@ -391,16 +482,43 @@ def summarize_fulltext_index(task_dir: Path, safety: dict[str, Any], warnings: l
             if isinstance(manifest_data, dict):
                 item["manifest_full_md_path"] = str(manifest_data.get("full_md_path") or full_md_path)
                 item["manifest_title"] = str(first_present(manifest_data, "title", "display_title") or title)
+                manifest_structure = _structure_summary(manifest_data)
+                if manifest_structure["ready_for_full_mode"]:
+                    row_structure = manifest_structure
+                else:
+                    merged = {}
+                    for field in ("section_tree", "paragraph_sequence", "reference_list"):
+                        merged[field] = manifest_data.get(field) or row.get(field)
+                    row_structure = _structure_summary(merged)
+        structure_overlay = (structure_summary or {}).get("articles_by_id", {}).get(stable_id)
+        if structure_overlay:
+            item["structure_summary_path"] = (structure_summary or {}).get("rel_path") or (structure_summary or {}).get("path")
+            item["structure_summary_reference_sources"] = structure_overlay.get("reference_sources") or []
+            row_structure = overlay_structure_summary(row_structure, structure_overlay)
+        item["full_mode_structure"] = row_structure
+        if row_structure["ready_for_full_mode"]:
+            ready_structure_count += 1
+        for field, present in row_structure["present"].items():
+            if present:
+                structure_counts[field] += 1
         items.append(item)
         if full_md_path:
             safety["full_md_pointers_recorded"] += 1
     return {
         "exists": True,
-        "rel_path": SIDECAR_PATHS["fulltext_index"],
+        "rel_path": SIDECAR_PATHS["fulltext_index"] if not sidecar_dir else str(path),
         "sha256": sha256_file(path),
         "item_count": len(records),
         "vectorized_count": vectorized,
         "fulltext_available_count": available,
+        "ready_structure_count": ready_structure_count,
+        "full_mode_structure_coverage": {
+            field: {
+                "count": count,
+                "rate": round(count / len(records), 4) if records else 0,
+            }
+            for field, count in structure_counts.items()
+        },
         "index_declares_rag_chunks": bool(isinstance(data, dict) and data.get("contains_rag_chunks")),
         "index_declares_vectors": bool(isinstance(data, dict) and data.get("contains_vectors")),
         "items": items,
@@ -408,8 +526,11 @@ def summarize_fulltext_index(task_dir: Path, safety: dict[str, Any], warnings: l
     }
 
 
-def summarize_mineru_ledger(task_dir: Path, safety: dict[str, Any], warnings: list[str]) -> dict[str, Any]:
-    path = task_dir / SIDECAR_PATHS["mineru_job_ledger"]
+def summarize_mineru_ledger(task_dir: Path, safety: dict[str, Any], warnings: list[str], sidecar_dir: Path | None = None) -> dict[str, Any]:
+    if sidecar_dir:
+        path = sidecar_dir.resolve().parent / "mineru-job-ledger.jsonl"
+    else:
+        path = task_dir / SIDECAR_PATHS["mineru_job_ledger"]
     if not path.is_file():
         return {"exists": False, "row_count": 0, "event_counts": {}, "status_counts": {}}
     event_counts: Counter[str] = Counter()
@@ -488,8 +609,16 @@ def write_derived(task_dir: Path, manifest: dict[str, Any]) -> None:
 
 def main() -> int:
     args = parse_args()
-    task_dir = args.task_dir.expanduser().resolve()
-    output = args.output.expanduser().resolve() if args.output else task_dir / "00-intake" / "jiansuo-sidecar-manifest.json"
+    output = args.output.expanduser().resolve() if args.output else None
+    if args.task_dir:
+        task_dir = args.task_dir.expanduser().resolve()
+    elif output and output.parent.name == "00-intake":
+        task_dir = output.parent.parent.resolve()
+    else:
+        task_dir = Path.cwd().resolve()
+    sidecar_dir = args.sidecar_dir.expanduser().resolve() if args.sidecar_dir else None
+    structure_summary_path = args.structure_summary.expanduser().resolve() if args.structure_summary else None
+    output = output if output else task_dir / "00-intake" / "jiansuo-sidecar-manifest.json"
     warnings: list[str] = []
     safety: dict[str, Any] = {
         "forbidden_keys": load_policy_forbidden_keys(),
@@ -509,8 +638,9 @@ def main() -> int:
     source_roles = summarize_source_roles(task_dir, safety, warnings)
     rag_seeds = summarize_rag_seed_pack(task_dir, safety, warnings)
     gaps = summarize_gap_ledger(task_dir, safety, warnings)
-    fulltext_index = summarize_fulltext_index(task_dir, safety, warnings)
-    mineru = summarize_mineru_ledger(task_dir, safety, warnings)
+    structure_summary = load_structure_summary(task_dir, structure_summary_path, warnings, safety)
+    fulltext_index = summarize_fulltext_index(task_dir, safety, warnings, sidecar_dir, structure_summary)
+    mineru = summarize_mineru_ledger(task_dir, safety, warnings, sidecar_dir)
     downstream_manifest = summarize_downstream_manifest(task_dir, safety, warnings)
     bibliography = build_bibliography_scope(task_dir, sidecars, safety)
 
@@ -520,6 +650,7 @@ def main() -> int:
         "schema": SCHEMA,
         "created_at": now_iso(),
         "task_dir": str(task_dir),
+        "sidecar_dir": str(sidecar_dir) if sidecar_dir else "",
         "sidecars": sidecars,
         "available_sidecar_count": sum(1 for item in sidecars.values() if item.get("exists") and not item.get("derived")),
         "source_role_summary": source_roles,
@@ -527,6 +658,11 @@ def main() -> int:
         "bibliography_scope": bibliography,
         "downstream_consumption_manifest": downstream_manifest,
         "fulltext_index": fulltext_index,
+        "fulltext_structure_summary": {
+            key: value
+            for key, value in structure_summary.items()
+            if key != "articles_by_id"
+        },
         "mineru_job_ledger": mineru,
         "gap_summary": gaps,
         "knowledge_workbench_sources": sidecars["knowledge_workbench_sources"],

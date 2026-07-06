@@ -25,7 +25,7 @@ CANDIDATE_ASSETS = [
     ("core_library_ledger", "02b-core-library/core-library-ledger.json"),
     ("core_library_selected", "02b-core-library/core-library-selected.csv"),
     ("rag_import_handoff", "025-rag-import/rag-import-handoff.md"),
-    ("zotero_pdf_rag_handoff", "06-gates/zotero-pdf-rag-handoff.json"),
+    ("zotero_pdf_rag_handoff", "025-rag-import/zotero-pdf-rag-handoff-input.json"),
     ("source_profiles", "03-analysis/fulltext-layer/source-profiles-bridge-v2.jsonl"),
     ("mu_fulltext_core_pack", "03-analysis/fulltext-layer/mu-fulltext-core-pack.json"),
     ("per_article_profiles", "03-analysis/fulltext-layer/per-article-style-profiles.json"),

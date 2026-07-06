@@ -39,12 +39,19 @@ def read_json(path: Path):
 
 
 def make_safe_sidecars(task: Path) -> None:
+    section_tree = [{"index": 1, "title": "引言", "level": 1, "subsection_count": 0}]
+    paragraph_sequence = [{"index": 1, "heading": "引言", "char_count": 28, "sha256": "sha-paragraph"}]
+    reference_list = [{"index": 1, "raw": "王某：《碑帖研究》，测试出版社2024年版。", "year": 2024, "lang": "zh"}]
     write_json(task / "025-rag-import" / "fulltext" / "A1" / "manifest.json", {
         "stable_id": "A1",
         "title": "碑帖传播研究",
+        "year": 2024,
         "full_md_path": "025-rag-import/fulltext/A1/full.md",
         "sha256": "sha-fixture",
         "is_vectorized": True,
+        "section_tree": section_tree,
+        "paragraph_sequence": paragraph_sequence,
+        "reference_list": reference_list,
     })
     write_json(task / "025-rag-import" / "fulltext" / "fulltext-index.json", {
         "contains_rag_chunks": False,
@@ -54,14 +61,23 @@ def make_safe_sidecars(task: Path) -> None:
                 "stable_id": "A1",
                 "source_id": "A1",
                 "title": "碑帖传播研究",
+                "year": 2024,
                 "full_md_path": "025-rag-import/fulltext/A1/full.md",
                 "sha256": "sha-fixture",
                 "is_vectorized": True,
+                "section_tree": section_tree,
+                "paragraph_sequence": paragraph_sequence,
+                "reference_list": reference_list,
             }
         ],
     })
     (task / "025-rag-import" / "fulltext" / "A1" / "full.md").write_text(
-        "SENTINEL_SHOULD_NOT_APPEAR_IN_MANIFEST\n",
+        "# 碑帖传播研究\n"
+        "张三\n"
+        "摘要：本文讨论碑帖传播。\n"
+        "关键词：碑帖；传播\n\n"
+        "正文第一段讨论碑帖材料与方法。\n\n"
+        "王某：《碑帖研究》，测试出版社2024年版。\n",
         encoding="utf-8",
     )
     write_json(task / "026-knowledge-workbench" / "source-role-register.json", {
@@ -141,13 +157,156 @@ def fx_safe_manifest_no_fullmd_read(tmp: Path) -> None:
     record(
         "safe_manifest_no_fullmd_read",
         proc.returncode == 0
-        and "SENTINEL_SHOULD_NOT_APPEAR_IN_MANIFEST" not in text
+        and "正文第一段讨论碑帖材料与方法" not in text
         and "SENTINEL_SOURCE_CARD_SHOULD_NOT_APPEAR" not in text
         and (data.get("safety") or {}).get("full_md_files_opened") == 0
         and data.get("fulltext_index", {}).get("item_count") == 1
         and verdict.get("verdict") == "PASS"
         and gate_proc.returncode == 0,
         proc.stdout[:160] + proc.stderr[:160] + gate_proc.stderr[:160],
+    )
+
+
+def fx_sidecar_dir_manifest_structure_counts(tmp: Path) -> None:
+    task = tmp / "sidecar-dir"
+    make_safe_sidecars(task)
+    out = task / "00-intake" / "jiansuo-sidecar-manifest.json"
+    proc = run([
+        str(SCRIPTS / "build_jiansuo_sidecar_manifest.py"),
+        "--sidecar-dir", str(task / "025-rag-import" / "fulltext"),
+        "--output", str(out),
+    ])
+    manifest = read_json(out) if out.exists() else {}
+    fulltext = manifest.get("fulltext_index") or {}
+    record(
+        "sidecar_dir_manifest_structure_counts",
+        proc.returncode == 0
+        and fulltext.get("ready_structure_count") == 1
+        and fulltext.get("full_mode_structure_coverage", {}).get("reference_list", {}).get("count") == 1
+        and (manifest.get("safety") or {}).get("full_md_files_opened") == 0,
+        proc.stdout[:200] + proc.stderr[:200],
+    )
+
+
+def fx_build_mu_pack_from_sidecar_pass(tmp: Path) -> None:
+    task = tmp / "mu-pack"
+    make_safe_sidecars(task)
+    first_manifest = read_json(task / "025-rag-import" / "fulltext" / "A1" / "manifest.json")
+    first_index = read_json(task / "025-rag-import" / "fulltext" / "fulltext-index.json")
+    items = []
+    for index in range(1, 11):
+        stable_id = f"A{index}"
+        title = f"碑帖传播研究{index}"
+        row = dict(first_index["items"][0])
+        row.update({
+            "stable_id": stable_id,
+            "source_id": stable_id,
+            "title": title,
+            "year": 2024,
+            "full_md_path": f"025-rag-import/fulltext/{stable_id}/full.md",
+        })
+        manifest = dict(first_manifest)
+        manifest.update({
+            "stable_id": stable_id,
+            "title": title,
+            "year": 2024,
+            "full_md_path": f"025-rag-import/fulltext/{stable_id}/full.md",
+        })
+        write_json(task / "025-rag-import" / "fulltext" / stable_id / "manifest.json", manifest)
+        (task / "025-rag-import" / "fulltext" / stable_id / "full.md").write_text(
+            f"# {title}\n张三\n摘要：本文讨论碑帖传播。\n关键词：碑帖；传播\n\n正文第一段讨论碑帖材料与方法。\n\n王某：《碑帖研究》，测试出版社2024年版。\n",
+            encoding="utf-8",
+        )
+        items.append(row)
+    first_index["items"] = items
+    write_json(task / "025-rag-import" / "fulltext" / "fulltext-index.json", first_index)
+    output = task / "03-analysis" / "fulltext-layer" / "mu-fulltext-core-pack.json"
+    proc = run([
+        str(SCRIPTS / "build_mu_fulltext_core_pack_from_sidecar.py"),
+        "--task-dir", str(task),
+        "--target-journal", "测试刊",
+    ])
+    gate_proc = run([
+        str(SCRIPTS / "run_stage_gates.py"),
+        "--gate", "mu-fulltext-pack",
+        "--input", str(output),
+    ])
+    try:
+        verdict = json.loads(gate_proc.stdout)
+    except json.JSONDecodeError:
+        verdict = {}
+    payload = read_json(output) if output.exists() else {}
+    summary_path = task / "03-analysis" / "fulltext-layer" / "mu-fulltext-structure-summary.json"
+    summary = read_json(summary_path) if summary_path.exists() else {}
+    text = output.read_text(encoding="utf-8") if output.exists() else ""
+    record(
+        "build_mu_pack_from_sidecar_pass",
+        proc.returncode == 0
+        and gate_proc.returncode == 0
+        and verdict.get("verdict") in {"PASS", "DEGRADED"}
+        and payload.get("articles", [{}])[0].get("fulltext_sha256")
+        and summary.get("article_count") == 10
+        and "正文第一段讨论碑帖材料与方法" not in summary_path.read_text(encoding="utf-8")
+        and "正文第一段讨论碑帖材料与方法" in text,
+        proc.stdout[:200] + proc.stderr[:200] + gate_proc.stdout[:240],
+    )
+
+
+def fx_structure_summary_reconciles_manifest_without_fullmd_read(tmp: Path) -> None:
+    task = tmp / "structure-summary"
+    make_safe_sidecars(task)
+    first_manifest = read_json(task / "025-rag-import" / "fulltext" / "A1" / "manifest.json")
+    first_index = read_json(task / "025-rag-import" / "fulltext" / "fulltext-index.json")
+    first_manifest.pop("reference_list", None)
+    first_index["items"][0].pop("reference_list", None)
+    items = []
+    for index in range(1, 11):
+        stable_id = f"A{index}"
+        title = f"碑帖传播研究{index}"
+        row = dict(first_index["items"][0])
+        row.update({
+            "stable_id": stable_id,
+            "source_id": stable_id,
+            "title": title,
+            "year": 2024,
+            "full_md_path": f"025-rag-import/fulltext/{stable_id}/full.md",
+        })
+        manifest = dict(first_manifest)
+        manifest.update({
+            "stable_id": stable_id,
+            "title": title,
+            "year": 2024,
+            "full_md_path": f"025-rag-import/fulltext/{stable_id}/full.md",
+        })
+        write_json(task / "025-rag-import" / "fulltext" / stable_id / "manifest.json", manifest)
+        (task / "025-rag-import" / "fulltext" / stable_id / "full.md").write_text(
+            f"# {title}\n张三\n摘要：本文讨论碑帖传播。\n关键词：碑帖；传播\n\n正文第一段讨论碑帖材料与方法。\n\n王某：《碑帖研究》，测试出版社2024年版。\n",
+            encoding="utf-8",
+        )
+        items.append(row)
+    first_index["items"] = items
+    write_json(task / "025-rag-import" / "fulltext" / "fulltext-index.json", first_index)
+    pack_proc = run([
+        str(SCRIPTS / "build_mu_fulltext_core_pack_from_sidecar.py"),
+        "--task-dir", str(task),
+        "--target-journal", "测试刊",
+    ])
+    manifest_proc = run([
+        str(SCRIPTS / "build_jiansuo_sidecar_manifest.py"),
+        "--task-dir", str(task),
+    ])
+    manifest = read_json(task / "00-intake" / "jiansuo-sidecar-manifest.json")
+    fulltext = manifest.get("fulltext_index") or {}
+    record(
+        "structure_summary_reconciles_manifest_without_fullmd_read",
+        pack_proc.returncode == 0
+        and manifest_proc.returncode == 0
+        and fulltext.get("item_count") == 10
+        and fulltext.get("ready_structure_count") == 10
+        and fulltext.get("full_mode_structure_coverage", {}).get("reference_list", {}).get("count") == 10
+        and (manifest.get("safety") or {}).get("full_md_files_opened") == 0
+        and (manifest.get("fulltext_structure_summary") or {}).get("article_count") == 10,
+        pack_proc.stdout[:200] + pack_proc.stderr[:200] + manifest_proc.stderr[:200],
     )
 
 
@@ -252,6 +411,9 @@ def main() -> int:
         for fx in [
             fx_missing_sidecar_pass,
             fx_safe_manifest_no_fullmd_read,
+            fx_sidecar_dir_manifest_structure_counts,
+            fx_build_mu_pack_from_sidecar_pass,
+            fx_structure_summary_reconciles_manifest_without_fullmd_read,
             fx_leakage_must_fail,
             fx_seed_plan_no_rag,
             fx_core_library_role_boost,

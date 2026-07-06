@@ -40,6 +40,6 @@ journal-style 对 `检索入库 0.2.11` 的 2.5 后 sidecar 产物采用 best-ef
 - `full_md_path` 只允许作为指针字段。
 - sidecar 存在不等于全文体例分析完成。
 
-## 回退
+## 缺失处理
 
-sidecar 缺失时，回退到 journal-style 既有交接面和 metadata-only 流程，不阻断期刊画像主流程。
+sidecar 缺失时，只保留已登记的题录、来源角色、RAG 查询种子和缺口账本等中间证据。正式任务必须继续按 `full` 全量深度模式停在 MinerU/mu 全文包验收门禁，等待 `检索入库` 补齐全文核心包；不得回退为 metadata-only 交付，也不得生成正式 C03 期刊画像。

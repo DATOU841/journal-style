@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-year-range", default="", help="Optional target year range.")
     parser.add_argument("--manuscript-path", default="", help="Optional manuscript path.")
     parser.add_argument("--submission-title", default="", help="Optional submission title.")
-    parser.add_argument("--run-mode", choices=["light", "standard", "full"], default="standard", help="Task run mode. full requires MinerU/mu fulltext pack.")
+    parser.add_argument("--run-mode", choices=["full"], default="full", help="Formal task run mode. journal-style production tasks are full-depth only.")
     parser.add_argument("--force", action="store_true", help="Overwrite task-state.json if present.")
     parser.add_argument("--allow-legacy-debug", action="store_true", help="Allow skeleton creation without Wenheng binding for offline debugging only.")
     return parser.parse_args()

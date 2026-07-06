@@ -93,15 +93,13 @@ journal-style-task/
 
 ## 工作流
 
-### 运行模式
+### 单一全量深度模式
 
-任务必须声明或默认进入一种运行模式：
+正式任务只允许进入 `full` 全量深度模式。`journal-style` 不再把 `light`、`standard` 或 `metadata-only` 作为正式完成模式；题录/摘要层分析只作为 full-depth 链路中的中间证据存在。
 
-- `light`：只做身份、题录趋势、栏目、作者机构等 metadata-only 分析，不要求 MinerU/mu 完整全文包。
-- `standard`：默认模式，做题录/摘要层标准期刊分析与非全文投稿辅助判断，不要求 MinerU/mu 完整全文包。
-- `full`：完整下游可消费模式，要求 `检索入库` 上游交付 MinerU/mu 完整全文核心包，并完成逐篇画像、聚合约束锁和已刊样本回放校准评分。
+MinerU/mu 完整全文包是正式任务 hard gate。缺少 `检索入库` 上游交付的 MinerU/mu 完整全文核心包时，任务必须停在全文包验收步骤并标记为阻塞；不得生成正式 C03 profile、不得生成下游消费包、不得把 metadata-only 结果称为交付成功。
 
-MinerU/mu 完整全文包是 `full` 模式的 hard gate，不是所有任务的 hard gate。`light`/`standard` 不得输出全文体例、论证风格或参考文献生态的稳定结论。
+只有完整通过 MinerU/mu 全文包验收、逐篇全文体例画像、聚合约束锁、已刊样本回放校准评分和 Step10 handoff 后，才允许由文衡后端受控调用 `/api/c03/journal-profiles/from-task/:taskId` 写入正式 C03 画像。显式 legacy/debug 只能用于离线回归，不得成为 production evidence。
 
 ### 状态机运行入口（防漂移）
 
